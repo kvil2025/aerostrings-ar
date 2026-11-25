@@ -170,6 +170,10 @@ export class AACManager {
   private onSpeechListeners: ((entry: SpokenHistoryEntry) => void)[] = [];
   private isVoiceReady = false;
 
+  public getIsVoiceReady(): boolean {
+    return this.isVoiceReady;
+  }
+
   constructor() {
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       this.speechSynth = window.speechSynthesis;

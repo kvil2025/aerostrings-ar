@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { AACCard, AACCategories, HandData } from '../types';
 import { aacManager, SpokenHistoryEntry } from '../aac/AACManager';
-import { Volume2, MessageSquare, Heart, ShieldAlert, Sparkles, Check, HelpCircle, ArrowRight } from 'lucide-react';
+import { Volume2, Heart, ShieldAlert, Sparkles, Check, HelpCircle } from 'lucide-react';
 
 interface AACViewProps {
   hands: HandData[];
