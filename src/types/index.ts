@@ -18,6 +18,7 @@ export interface HandData {
   thumbTip: ScreenPoint;
   wrist: ScreenPoint;
   palmCenter: ScreenPoint;
+  velocity?: ScreenPoint;
 }
 
 export interface AeroString {
@@ -33,14 +34,47 @@ export interface AeroString {
   lastPluckedTime: number;
   vibrationAmplitude: number; // 0 to 1 decay
   vibrationPhase: number;
-  // Dynamic physical string bending when touched
   pullPoint?: ScreenPoint | null;
   pullDisplacement?: number;
 }
 
-export type PlayMode = 'draw-strings' | 'elastic-two-hands' | 'laser-harp';
+export type PlayMode = 'air-drums' | 'draw-strings' | 'elastic-two-hands' | 'laser-harp';
 
 export type InstrumentTimbre = 'acoustic-guitar' | 'electric-lead' | 'crystal-harp' | 'deep-bass';
+
+export type DrumType = 
+  | 'kick' 
+  | 'snare' 
+  | 'hihat-closed' 
+  | 'hihat-open' 
+  | 'tom-high' 
+  | 'tom-low' 
+  | 'crash' 
+  | 'ride';
+
+export interface DrumPad {
+  id: string;
+  name: string;
+  shortName: string;
+  type: DrumType;
+  relX: number; // 0..1
+  relY: number; // 0..1
+  relRadius: number; // 0..1 relative to min dimension
+  color: string;
+  lastHitTime: number;
+  hitVelocity: number;
+  keyTrigger: string;
+}
+
+export interface Shockwave {
+  x: number;
+  y: number;
+  radius: number;
+  maxRadius: number;
+  color: string;
+  life: number; // 1 down to 0
+  maxLife: number;
+}
 
 export interface Particle {
   x: number;

@@ -1,11 +1,23 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { AeroString, HandData, InstrumentTimbre, PlayMode } from './types';
+import { AeroString, DrumPad, HandData, InstrumentTimbre, PlayMode } from './types';
 import { handTracker } from './vision/HandTracker';
 import { soundManager } from './audio/AudioEngine';
+import { drumsManager } from './audio/DrumsEngine';
 import { CanvasRenderer } from './components/CanvasRenderer';
 import { HUDOverlay } from './components/HUDOverlay';
 import { HelpModal } from './components/HelpModal';
 import { Sparkles, RefreshCw, ShieldAlert } from 'lucide-react';
+
+const INITIAL_DRUM_PADS: DrumPad[] = [
+  { id: 'crash', name: 'Crash Cymbal', shortName: 'Crash', type: 'crash', relX: 0.16, relY: 0.22, relRadius: 0.11, color: '#f59e0b', lastHitTime: 0, hitVelocity: 0, keyTrigger: 'C' },
+  { id: 'hihat', name: 'Hi-Hat (Charles)', shortName: 'Hi-Hat', type: 'hihat-closed', relX: 0.20, relY: 0.50, relRadius: 0.10, color: '#00f2ff', lastHitTime: 0, hitVelocity: 0, keyTrigger: 'H' },
+  { id: 'snare', name: 'Caja (Snare)', shortName: 'Snare', type: 'snare', relX: 0.36, relY: 0.70, relRadius: 0.12, color: '#EF3800', lastHitTime: 0, hitVelocity: 0, keyTrigger: 'S' },
+  { id: 'kick', name: 'Bombo (Kick)', shortName: 'Kick', type: 'kick', relX: 0.50, relY: 0.82, relRadius: 0.13, color: '#00f2ff', lastHitTime: 0, hitVelocity: 0, keyTrigger: 'K' },
+  { id: 'tom-high', name: 'Tom Alto (1)', shortName: 'Tom 1', type: 'tom-high', relX: 0.42, relY: 0.36, relRadius: 0.095, color: '#10b981', lastHitTime: 0, hitVelocity: 0, keyTrigger: 'T' },
+  { id: 'tom-mid', name: 'Tom Medio (2)', shortName: 'Tom 2', type: 'tom-high', relX: 0.58, relY: 0.36, relRadius: 0.095, color: '#10b981', lastHitTime: 0, hitVelocity: 0, keyTrigger: 'Y' },
+  { id: 'tom-low', name: 'Floor Tom', shortName: 'Floor', type: 'tom-low', relX: 0.68, relY: 0.70, relRadius: 0.12, color: '#EF3800', lastHitTime: 0, hitVelocity: 0, keyTrigger: 'F' },
+  { id: 'ride', name: 'Ride Cymbal', shortName: 'Ride', type: 'ride', relX: 0.84, relY: 0.25, relRadius: 0.12, color: '#f59e0b', lastHitTime: 0, hitVelocity: 0, keyTrigger: 'R' },
+];
 
 export const App: React.FC = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -19,10 +31,12 @@ export const App: React.FC = () => {
 
   const [hands, setHands] = useState<HandData[]>([]);
   const [strings, setStrings] = useState<AeroString[]>([]);
-  const [playMode, setPlayMode] = useState<PlayMode>('draw-strings');
+  const [drumPads, setDrumPads] = useState<DrumPad[]>(INITIAL_DRUM_PADS);
+  const [playMode, setPlayMode] = useState<PlayMode>('air-drums'); // Air drums default!
   const [timbre, setTimbre] = useState<InstrumentTimbre>('acoustic-guitar');
   const [isMuted, setIsMuted] = useState(false);
   const [lastPlucked, setLastPlucked] = useState<{ note: string; freq: number; length: number } | null>(null);
+  const [lastDrumHit, setLastDrumHit] = useState<{ name: string; velocity: number } | null>(null);
   const [hoverInfo, setHoverInfo] = useState<string | null>(null);
   const [fps, setFps] = useState(60);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
@@ -37,14 +51,16 @@ export const App: React.FC = () => {
 
   const handleUnlockAudio = async () => {
     await soundManager.unlockAudio();
-    soundManager.testChord();
+    drumsManager.trigger('kick', 0.9);
+    setTimeout(() => drumsManager.trigger('snare', 0.85), 180);
+    setTimeout(() => drumsManager.trigger('crash', 0.85), 360);
   };
 
   const frameCountRef = useRef(0);
   const lastFpsUpdateRef = useRef(performance.now());
   const streamRef = useRef<MediaStream | null>(null);
 
-  // 1. Request Camera with automatic progressive fallback
+  // 1. Request Camera
   const startCamera = useCallback(async (deviceId?: string) => {
     try {
       if (streamRef.current) {
@@ -52,16 +68,12 @@ export const App: React.FC = () => {
       }
 
       let stream: MediaStream | null = null;
-
-      // Attempt 1: Specific or high resolution
       try {
         const constraints: MediaStreamConstraints = deviceId
           ? { video: { deviceId: { exact: deviceId } }, audio: false }
           : { video: { width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false };
         stream = await navigator.mediaDevices.getUserMedia(constraints);
-      } catch (firstErr) {
-        console.warn('Intento 1 con constraints ideales falló, reintentando con fallback básico { video: true }...', firstErr);
-        // Attempt 2: Minimal fallback without strict constraints
+      } catch {
         stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
       }
 
@@ -72,7 +84,6 @@ export const App: React.FC = () => {
         await videoRef.current.play();
       }
 
-      // Enumerate cameras
       const devices = await navigator.mediaDevices.enumerateDevices();
       const videoInputs = devices.filter((d) => d.kind === 'videoinput');
       setVideoDevices(videoInputs);
@@ -93,10 +104,6 @@ export const App: React.FC = () => {
         details = 'El navegador o macOS ha denegado el permiso de acceso a la cámara. Debes habilitarlo en el candado de la URL o en Ajustes del Sistema de tu Mac.';
       } else if (errName === 'NotReadableError' || errName === 'TrackStartError') {
         details = 'La cámara está siendo usada por otra aplicación en tu Mac (FaceTime, Zoom, Google Meet, Teams, Photo Booth, OBS o Discord). Ciérrala e inténtalo de nuevo.';
-      } else if (errName === 'NotFoundError' || errName === 'DevicesNotFoundError') {
-        details = 'No se detectó ninguna cámara web conectada a este equipo.';
-      } else if (errName === 'OverconstrainedError') {
-        details = 'La cámara no soporta la resolución requerida.';
       }
 
       setCameraError({
@@ -111,8 +118,6 @@ export const App: React.FC = () => {
   useEffect(() => {
     const setupApp = async () => {
       await startCamera();
-
-      // Initialize MediaPipe Hand Tracker
       const ready = await handTracker.initialize((msg) => setLoadingMsg(msg));
       if (ready) {
         setIsVisionReady(true);
@@ -132,6 +137,24 @@ export const App: React.FC = () => {
     setSelectedDeviceId(deviceId);
     await startCamera(deviceId);
   };
+
+  // Keyboard Fallback for Drums
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const key = e.key.toUpperCase();
+      const pad = drumPads.find((p) => p.keyTrigger === key);
+      if (pad) {
+        drumsManager.trigger(pad.type, 0.9);
+        setLastDrumHit({ name: pad.name, velocity: 0.9 });
+        setDrumPads((prev) =>
+          prev.map((p) => (p.id === pad.id ? { ...p, lastHitTime: performance.now(), hitVelocity: 0.9 } : p))
+        );
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [drumPads]);
 
   // 3. Detection Loop
   useEffect(() => {
@@ -173,6 +196,10 @@ export const App: React.FC = () => {
 
   const handlePluck = useCallback((info: { note: string; freq: number; length: number }) => {
     setLastPlucked(info);
+  }, []);
+
+  const handleDrumHit = useCallback((pad: DrumPad, velocity: number) => {
+    setLastDrumHit({ name: pad.name, velocity });
   }, []);
 
   const loadHarpPreset = useCallback(() => {
@@ -270,11 +297,12 @@ export const App: React.FC = () => {
         videoRef={videoRef}
         hands={hands}
         strings={strings}
+        drumPads={drumPads}
         playMode={playMode}
         videoDimming={videoDimming}
         onAddString={(newStr) => setStrings((prev) => [...prev, newStr])}
-        onUpdateStrings={setStrings}
         onPluck={handlePluck}
+        onDrumHit={handleDrumHit}
         currentNoteHover={hoverInfo}
         setCurrentNoteHover={setHoverInfo}
       />
@@ -291,6 +319,7 @@ export const App: React.FC = () => {
         isMuted={isMuted}
         setIsMuted={setIsMuted}
         lastPlucked={lastPlucked}
+        lastDrumHit={lastDrumHit}
         hoverInfo={hoverInfo}
         handsDetectedCount={hands.length}
         fps={fps}
@@ -314,13 +343,13 @@ export const App: React.FC = () => {
             <div className="absolute -inset-1 rounded-2xl border border-[#00f2ff] animate-ping opacity-25 pointer-events-none"></div>
           </div>
           <h2 className="text-2xl font-bold font-mono tracking-wider text-white mb-2">
-            AERO<span className="text-[#00f2ff]">STRINGS</span> AR
+            AIR<span className="text-amber-400">DRUMS</span> & AERO<span className="text-[#00f2ff]">STRINGS</span> AR
           </h2>
           <p className="text-sm font-mono text-cyan-300 mb-4 max-w-md">
             {loadingMsg}
           </p>
           <div className="w-64 h-1.5 bg-slate-800 rounded-full overflow-hidden border border-cyan-500/20">
-            <div className="h-full bg-gradient-to-r from-[#00f2ff] to-[#EF3800] animate-[shimmer_2s_infinite]"></div>
+            <div className="h-full bg-gradient-to-r from-amber-400 via-[#00f2ff] to-[#EF3800] animate-[shimmer_2s_infinite]"></div>
           </div>
           <p className="text-xs text-slate-400 font-mono mt-6">
             Esperando autorización de cámara web en tu navegador...
@@ -350,28 +379,6 @@ export const App: React.FC = () => {
               {cameraError.details}
             </p>
 
-            {/* Step-by-step resolution for macOS & Browsers */}
-            <div className="space-y-3 mb-6 text-xs text-slate-300 font-mono">
-              <div className="font-bold text-white text-sm">Pasos para autorizar:</div>
-              <div className="flex items-start space-x-2">
-                <span className="w-5 h-5 rounded-full bg-[#00f2ff]/20 text-[#00f2ff] flex items-center justify-center flex-shrink-0 mt-0.5">1</span>
-                <span>En la barra de direcciones de tu navegador (junto a <code>http://localhost:3000</code>), haz clic en el <strong>icono de candado o cámara 🔒</strong>.</span>
-              </div>
-              <div className="flex items-start space-x-2">
-                <span className="w-5 h-5 rounded-full bg-[#00f2ff]/20 text-[#00f2ff] flex items-center justify-center flex-shrink-0 mt-0.5">2</span>
-                <span>Asegúrate de que <strong>Cámara</strong> esté configurada en <strong>"Permitir"</strong> (Allow).</span>
-              </div>
-              <div className="flex items-start space-x-2">
-                <span className="w-5 h-5 rounded-full bg-[#00f2ff]/20 text-[#00f2ff] flex items-center justify-center flex-shrink-0 mt-0.5">3</span>
-                <span>En macOS: Abre <strong>Ajustes del Sistema &gt; Privacidad y Seguridad &gt; Cámara</strong> y confirma que tu navegador (Chrome, Brave, Safari) tenga el interruptor encendido.</span>
-              </div>
-              <div className="flex items-start space-x-2">
-                <span className="w-5 h-5 rounded-full bg-[#00f2ff]/20 text-[#00f2ff] flex items-center justify-center flex-shrink-0 mt-0.5">4</span>
-                <span>Si tienes <strong>Zoom, Teams, FaceTime o Meet</strong> abiertos, ciérralos para liberar el sensor de la cámara.</span>
-              </div>
-            </div>
-
-            {/* Action Buttons */}
             <div className="flex flex-col sm:flex-row items-center gap-3">
               <button
                 onClick={() => startCamera()}
@@ -383,11 +390,11 @@ export const App: React.FC = () => {
               <button
                 onClick={() => {
                   setSimulationMode(true);
-                  loadHarpPreset();
+                  setPlayMode('air-drums');
                 }}
-                className="w-full sm:w-auto px-4 py-3 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-xs font-mono text-slate-300 border border-slate-700 flex items-center justify-center space-x-2 whitespace-nowrap"
+                className="w-full sm:w-auto px-4 py-3 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-xs font-mono text-amber-300 border border-amber-500/40 flex items-center justify-center space-x-2 whitespace-nowrap"
               >
-                <span>Probar con Ratón / Teclado</span>
+                <span>Tocar Batería con Ratón / Teclado 🥁</span>
               </button>
             </div>
           </div>
