@@ -15,6 +15,7 @@ import {
   Camera,
   Sun
 } from 'lucide-react';
+import { soundManager } from '../audio/AudioEngine';
 
 interface HUDOverlayProps {
   playMode: PlayMode;
@@ -37,6 +38,8 @@ interface HUDOverlayProps {
   videoDevices: MediaDeviceInfo[];
   selectedDeviceId: string;
   onSelectDevice: (id: string) => void;
+  audioState: AudioContextState;
+  onUnlockAudio: () => void;
 }
 
 export const HUDOverlay: React.FC<HUDOverlayProps> = ({
@@ -60,6 +63,8 @@ export const HUDOverlay: React.FC<HUDOverlayProps> = ({
   videoDevices,
   selectedDeviceId,
   onSelectDevice,
+  audioState,
+  onUnlockAudio,
 }) => {
   return (
     <div className="absolute inset-0 pointer-events-none z-20 flex flex-col justify-between p-3 md:p-6">
@@ -84,7 +89,7 @@ export const HUDOverlay: React.FC<HUDOverlayProps> = ({
 
         {/* Center / Camera & Telemetry Control */}
         <div className="flex items-center space-x-3 glass-panel px-3 py-1.5 rounded-xl text-xs font-mono">
-          {/* Camera Selector (Internal vs External) */}
+          {/* Camera Selector */}
           {videoDevices.length > 1 && (
             <div className="flex items-center space-x-1.5 border-r border-slate-700 pr-3">
               <Camera className="w-3.5 h-3.5 text-[#00f2ff]" />
@@ -131,8 +136,18 @@ export const HUDOverlay: React.FC<HUDOverlayProps> = ({
           </div>
         </div>
 
-        {/* Right Tools */}
+        {/* Right Tools (Sound Test & Volume) */}
         <div className="flex items-center space-x-2">
+          {/* Quick Audio Test Button */}
+          <button
+            onClick={() => soundManager.testChord()}
+            className="px-3 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/50 text-emerald-300 text-xs font-mono flex items-center space-x-1.5 transition-all shadow-[0_0_12px_rgba(16,185,129,0.25)]"
+            title="Probar sonido ahora mismo"
+          >
+            <Volume2 className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Probar Audio 🎵</span>
+          </button>
+
           <button
             onClick={() => setIsMuted(!isMuted)}
             className="btn-neon p-2.5 rounded-xl flex items-center justify-center"
@@ -140,6 +155,7 @@ export const HUDOverlay: React.FC<HUDOverlayProps> = ({
           >
             {isMuted ? <VolumeX className="w-4 h-4 text-rose-400" /> : <Volume2 className="w-4 h-4 text-[#00f2ff]" />}
           </button>
+
           <button
             onClick={onOpenHelp}
             className="btn-neon p-2.5 rounded-xl flex items-center justify-center"
@@ -150,27 +166,45 @@ export const HUDOverlay: React.FC<HUDOverlayProps> = ({
         </div>
       </header>
 
-      {/* Center Note Display & Real-time Mapping Feedback */}
-      <div className="flex flex-col items-center justify-center my-auto pointer-events-none">
-        {lastPlucked && (
-          <div className="glass-panel-glow px-6 py-3 rounded-2xl flex items-center space-x-4 animate-bounce">
-            <div className="text-3xl font-black text-[#00f2ff] font-mono tracking-wider">
-              {lastPlucked.note}
-            </div>
-            <div className="text-left font-mono text-xs text-slate-300 border-l border-cyan-500/30 pl-3">
-              <div>Frecuencia: <span className="text-emerald-400 font-bold">{Math.round(lastPlucked.freq)} Hz</span></div>
-              <div>Longitud de cuerda: <span className="text-amber-400 font-bold">{Math.round(lastPlucked.length)} px</span></div>
-            </div>
-          </div>
-        )}
+      {/* Prominent Audio Unlock Banner if Browser has muted AudioContext */}
+      {audioState !== 'running' && (
+        <div className="my-auto mx-auto pointer-events-auto">
+          <button
+            onClick={onUnlockAudio}
+            className="px-8 py-4 rounded-2xl bg-gradient-to-r from-[#00f2ff] via-[#EF3800] to-[#00f2ff] bg-[length:200%_auto] animate-[pulse_2s_infinite] text-slate-950 font-bold font-mono text-base md:text-lg flex items-center space-x-3 shadow-[0_0_40px_rgba(0,242,255,0.6)] hover:scale-105 transition-transform"
+          >
+            <Volume2 className="w-6 h-6 animate-bounce" />
+            <span>🔊 HAZ CLIC AQUÍ PARA ACTIVAR EL SONIDO</span>
+          </button>
+          <p className="text-center text-xs font-mono text-cyan-300 mt-2 bg-black/60 px-3 py-1 rounded-full">
+            (Los navegadores requieren 1 clic para permitir reproducir audio)
+          </p>
+        </div>
+      )}
 
-        {hoverInfo && (
-          <div className="mt-4 px-5 py-2 rounded-full bg-[#050508]/90 border border-[#00f2ff] text-xs font-mono text-[#00f2ff] shadow-[0_0_20px_rgba(0,242,255,0.4)] flex items-center space-x-2">
-            <span className="w-2 h-2 rounded-full bg-[#00f2ff] animate-ping"></span>
-            <span>{hoverInfo}</span>
-          </div>
-        )}
-      </div>
+      {/* Center Note Display & Real-time Mapping Feedback */}
+      {audioState === 'running' && (
+        <div className="flex flex-col items-center justify-center my-auto pointer-events-none">
+          {lastPlucked && (
+            <div className="glass-panel-glow px-6 py-3 rounded-2xl flex items-center space-x-4 animate-bounce">
+              <div className="text-3xl font-black text-[#00f2ff] font-mono tracking-wider">
+                {lastPlucked.note}
+              </div>
+              <div className="text-left font-mono text-xs text-slate-300 border-l border-cyan-500/30 pl-3">
+                <div>Frecuencia: <span className="text-emerald-400 font-bold">{Math.round(lastPlucked.freq)} Hz</span></div>
+                <div>Longitud de cuerda: <span className="text-amber-400 font-bold">{Math.round(lastPlucked.length)} px</span></div>
+              </div>
+            </div>
+          )}
+
+          {hoverInfo && (
+            <div className="mt-4 px-5 py-2 rounded-full bg-[#050508]/90 border border-[#00f2ff] text-xs font-mono text-[#00f2ff] shadow-[0_0_20px_rgba(0,242,255,0.4)] flex items-center space-x-2">
+              <span className="w-2 h-2 rounded-full bg-[#00f2ff] animate-ping"></span>
+              <span>{hoverInfo}</span>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Bottom Control Dock */}
       <footer className="w-full flex flex-col md:flex-row items-center justify-between gap-3 pointer-events-auto">

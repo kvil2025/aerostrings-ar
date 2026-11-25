@@ -5,17 +5,17 @@ import { soundManager } from './audio/AudioEngine';
 import { CanvasRenderer } from './components/CanvasRenderer';
 import { HUDOverlay } from './components/HUDOverlay';
 import { HelpModal } from './components/HelpModal';
-import { Camera, AlertCircle, Sparkles } from 'lucide-react';
+import { Sparkles, RefreshCw, ShieldAlert } from 'lucide-react';
 
 export const App: React.FC = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isVisionReady, setIsVisionReady] = useState(false);
   const [loadingMsg, setLoadingMsg] = useState('Iniciando sistema de visión computacional...');
-  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [cameraError, setCameraError] = useState<{ name: string; message: string; details: string } | null>(null);
 
   const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState<string>('');
-  const [videoDimming, setVideoDimming] = useState<number>(0.12); // Default crystal clear camera view
+  const [videoDimming, setVideoDimming] = useState<number>(0.12);
 
   const [hands, setHands] = useState<HandData[]>([]);
   const [strings, setStrings] = useState<AeroString[]>([]);
@@ -26,27 +26,45 @@ export const App: React.FC = () => {
   const [hoverInfo, setHoverInfo] = useState<string | null>(null);
   const [fps, setFps] = useState(60);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
+  const [simulationMode, setSimulationMode] = useState(false);
+  const [audioState, setAudioState] = useState<AudioContextState>('suspended');
 
-  // FPS calculation refs
+  useEffect(() => {
+    soundManager.subscribeStateChange((state) => {
+      setAudioState(state);
+    });
+  }, []);
+
+  const handleUnlockAudio = async () => {
+    await soundManager.unlockAudio();
+    soundManager.testChord();
+  };
+
   const frameCountRef = useRef(0);
   const lastFpsUpdateRef = useRef(performance.now());
   const streamRef = useRef<MediaStream | null>(null);
 
-  // 1. Start Camera with specified deviceId
+  // 1. Request Camera with automatic progressive fallback
   const startCamera = useCallback(async (deviceId?: string) => {
     try {
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((track) => track.stop());
       }
 
-      const constraints: MediaStreamConstraints = {
-        video: deviceId
-          ? { deviceId: { exact: deviceId }, width: { ideal: 1280 }, height: { ideal: 720 } }
-          : { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' },
-        audio: false,
-      };
+      let stream: MediaStream | null = null;
 
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      // Attempt 1: Specific or high resolution
+      try {
+        const constraints: MediaStreamConstraints = deviceId
+          ? { video: { deviceId: { exact: deviceId } }, audio: false }
+          : { video: { width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false };
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+      } catch (firstErr) {
+        console.warn('Intento 1 con constraints ideales falló, reintentando con fallback básico { video: true }...', firstErr);
+        // Attempt 2: Minimal fallback without strict constraints
+        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      }
+
       streamRef.current = stream;
 
       if (videoRef.current) {
@@ -64,13 +82,28 @@ export const App: React.FC = () => {
       }
 
       setCameraError(null);
+      setSimulationMode(false);
     } catch (err: unknown) {
-      console.error('Camera access error:', err);
-      setCameraError(
-        err instanceof Error
-          ? `Acceso a la cámara denegado: ${err.message}`
-          : 'No se pudo acceder a la cámara web. Asegúrate de otorgar permisos.'
-      );
+      console.error('Error al inicializar cámara:', err);
+      const errorObj = err as Error;
+      const errName = errorObj.name || 'CameraError';
+      let details = 'No se pudo acceder al hardware de video.';
+
+      if (errName === 'NotAllowedError' || errName === 'PermissionDeniedError') {
+        details = 'El navegador o macOS ha denegado el permiso de acceso a la cámara. Debes habilitarlo en el candado de la URL o en Ajustes del Sistema de tu Mac.';
+      } else if (errName === 'NotReadableError' || errName === 'TrackStartError') {
+        details = 'La cámara está siendo usada por otra aplicación en tu Mac (FaceTime, Zoom, Google Meet, Teams, Photo Booth, OBS o Discord). Ciérrala e inténtalo de nuevo.';
+      } else if (errName === 'NotFoundError' || errName === 'DevicesNotFoundError') {
+        details = 'No se detectó ninguna cámara web conectada a este equipo.';
+      } else if (errName === 'OverconstrainedError') {
+        details = 'La cámara no soporta la resolución requerida.';
+      }
+
+      setCameraError({
+        name: errName,
+        message: errorObj.message || 'Permiso denegado',
+        details,
+      });
     }
   }, []);
 
@@ -83,8 +116,6 @@ export const App: React.FC = () => {
       const ready = await handTracker.initialize((msg) => setLoadingMsg(msg));
       if (ready) {
         setIsVisionReady(true);
-      } else {
-        setCameraError('No se pudo cargar el modelo neuronal de detección de manos.');
       }
     };
 
@@ -97,23 +128,21 @@ export const App: React.FC = () => {
     };
   }, [startCamera]);
 
-  // Handle camera switch
   const handleSelectDevice = async (deviceId: string) => {
     setSelectedDeviceId(deviceId);
     await startCamera(deviceId);
   };
 
-  // 3. Detection Loop (Runs every animation frame)
+  // 3. Detection Loop
   useEffect(() => {
     let animId: number;
 
     const loop = () => {
       const video = videoRef.current;
-      if (video && video.readyState >= 2 && isVisionReady) {
+      if (video && video.readyState >= 2 && isVisionReady && !simulationMode) {
         const detected = handTracker.detectHands(video, window.innerWidth, window.innerHeight);
         setHands(detected);
 
-        // Calculate FPS
         frameCountRef.current++;
         const now = performance.now();
         if (now - lastFpsUpdateRef.current >= 1000) {
@@ -131,7 +160,7 @@ export const App: React.FC = () => {
     }
 
     return () => cancelAnimationFrame(animId);
-  }, [isVisionReady]);
+  }, [isVisionReady, simulationMode]);
 
   // 4. Audio Engine Sync
   useEffect(() => {
@@ -142,12 +171,10 @@ export const App: React.FC = () => {
     soundManager.setMasterVolume(isMuted ? 0 : 0.7);
   }, [isMuted]);
 
-  // Pluck Handler
   const handlePluck = useCallback((info: { note: string; freq: number; length: number }) => {
     setLastPlucked(info);
   }, []);
 
-  // Preset: Laser Harp (7 pentatonic vertical strings)
   const loadHarpPreset = useCallback(() => {
     const w = window.innerWidth;
     const h = window.innerHeight;
@@ -185,7 +212,6 @@ export const App: React.FC = () => {
     setStrings(presetStrings);
   }, []);
 
-  // Preset: Standard 6-String Guitar (E2, A2, D3, G3, B3, E4)
   const loadGuitarPreset = useCallback(() => {
     const w = window.innerWidth;
     const h = window.innerHeight;
@@ -230,9 +256,8 @@ export const App: React.FC = () => {
   return (
     <main
       className="relative w-screen h-screen overflow-hidden bg-[#050508] text-slate-100 cyber-grid"
-      onClick={() => soundManager.init()}
+      onClick={() => soundManager.unlockAudio()}
     >
-      {/* Hidden processing video */}
       <video
         ref={videoRef}
         playsInline
@@ -241,7 +266,6 @@ export const App: React.FC = () => {
         className="hidden"
       />
 
-      {/* Main Interactive Hologram AR Canvas */}
       <CanvasRenderer
         videoRef={videoRef}
         hands={hands}
@@ -255,7 +279,6 @@ export const App: React.FC = () => {
         setCurrentNoteHover={setHoverInfo}
       />
 
-      {/* Futuristic HUD Interface */}
       <HUDOverlay
         playMode={playMode}
         setPlayMode={setPlayMode}
@@ -277,9 +300,11 @@ export const App: React.FC = () => {
         videoDevices={videoDevices}
         selectedDeviceId={selectedDeviceId}
         onSelectDevice={handleSelectDevice}
+        audioState={audioState}
+        onUnlockAudio={handleUnlockAudio}
       />
 
-      {/* Loading Screen Overlay */}
+      {/* Loading Overlay */}
       {!isVisionReady && !cameraError && (
         <div className="absolute inset-0 z-40 bg-[#050508]/90 backdrop-blur-lg flex flex-col items-center justify-center p-6 text-center">
           <div className="relative mb-6">
@@ -297,31 +322,78 @@ export const App: React.FC = () => {
           <div className="w-64 h-1.5 bg-slate-800 rounded-full overflow-hidden border border-cyan-500/20">
             <div className="h-full bg-gradient-to-r from-[#00f2ff] to-[#EF3800] animate-[shimmer_2s_infinite]"></div>
           </div>
-          <p className="text-xs text-slate-500 font-mono mt-6">
-            Por favor, concede permisos de cámara web cuando el navegador lo solicite.
+          <p className="text-xs text-slate-400 font-mono mt-6">
+            Esperando autorización de cámara web en tu navegador...
           </p>
         </div>
       )}
 
-      {/* Camera / Permission Error Overlay */}
-      {cameraError && (
-        <div className="absolute inset-0 z-40 bg-[#050508]/95 backdrop-blur-xl flex flex-col items-center justify-center p-6 text-center">
-          <div className="w-16 h-16 rounded-2xl bg-rose-950/50 border border-rose-500/40 flex items-center justify-center text-rose-400 mb-4 shadow-[0_0_20px_rgba(244,63,94,0.3)]">
-            <AlertCircle className="w-8 h-8" />
+      {/* Camera Permission / Error Diagnostics Modal */}
+      {cameraError && !simulationMode && (
+        <div className="absolute inset-0 z-40 bg-[#050508]/95 backdrop-blur-xl flex flex-col items-center justify-center p-4 md:p-8 text-slate-100">
+          <div className="glass-panel-glow max-w-xl w-full rounded-2xl p-6 md:p-8 border border-amber-500/40 shadow-[0_0_40px_rgba(245,158,11,0.2)]">
+            <div className="flex items-center space-x-3 mb-4">
+              <div className="w-12 h-12 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center flex-shrink-0">
+                <ShieldAlert className="w-6 h-6" />
+              </div>
+              <div>
+                <h2 className="text-lg md:text-xl font-bold font-mono text-white">
+                  Permiso de Cámara Requerido
+                </h2>
+                <p className="text-xs text-amber-300 font-mono">
+                  Código: <span className="font-bold">{cameraError.name}</span>
+                </p>
+              </div>
+            </div>
+
+            <p className="text-sm text-slate-200 mb-5 leading-relaxed bg-[#050508]/80 p-3.5 rounded-xl border border-slate-800">
+              {cameraError.details}
+            </p>
+
+            {/* Step-by-step resolution for macOS & Browsers */}
+            <div className="space-y-3 mb-6 text-xs text-slate-300 font-mono">
+              <div className="font-bold text-white text-sm">Pasos para autorizar:</div>
+              <div className="flex items-start space-x-2">
+                <span className="w-5 h-5 rounded-full bg-[#00f2ff]/20 text-[#00f2ff] flex items-center justify-center flex-shrink-0 mt-0.5">1</span>
+                <span>En la barra de direcciones de tu navegador (junto a <code>http://localhost:3000</code>), haz clic en el <strong>icono de candado o cámara 🔒</strong>.</span>
+              </div>
+              <div className="flex items-start space-x-2">
+                <span className="w-5 h-5 rounded-full bg-[#00f2ff]/20 text-[#00f2ff] flex items-center justify-center flex-shrink-0 mt-0.5">2</span>
+                <span>Asegúrate de que <strong>Cámara</strong> esté configurada en <strong>"Permitir"</strong> (Allow).</span>
+              </div>
+              <div className="flex items-start space-x-2">
+                <span className="w-5 h-5 rounded-full bg-[#00f2ff]/20 text-[#00f2ff] flex items-center justify-center flex-shrink-0 mt-0.5">3</span>
+                <span>En macOS: Abre <strong>Ajustes del Sistema &gt; Privacidad y Seguridad &gt; Cámara</strong> y confirma que tu navegador (Chrome, Brave, Safari) tenga el interruptor encendido.</span>
+              </div>
+              <div className="flex items-start space-x-2">
+                <span className="w-5 h-5 rounded-full bg-[#00f2ff]/20 text-[#00f2ff] flex items-center justify-center flex-shrink-0 mt-0.5">4</span>
+                <span>Si tienes <strong>Zoom, Teams, FaceTime o Meet</strong> abiertos, ciérralos para liberar el sensor de la cámara.</span>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex flex-col sm:flex-row items-center gap-3">
+              <button
+                onClick={() => startCamera()}
+                className="btn-neon w-full py-3 rounded-xl font-mono text-xs font-bold flex items-center justify-center space-x-2"
+              >
+                <RefreshCw className="w-4 h-4" />
+                <span>Reintentar Permiso de Cámara</span>
+              </button>
+              <button
+                onClick={() => {
+                  setSimulationMode(true);
+                  loadHarpPreset();
+                }}
+                className="w-full sm:w-auto px-4 py-3 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-xs font-mono text-slate-300 border border-slate-700 flex items-center justify-center space-x-2 whitespace-nowrap"
+              >
+                <span>Probar con Ratón / Teclado</span>
+              </button>
+            </div>
           </div>
-          <h2 className="text-xl font-bold font-mono text-white mb-2">Acceso a Cámara Requerido</h2>
-          <p className="text-sm text-slate-300 max-w-md mb-6">{cameraError}</p>
-          <button
-            onClick={() => window.location.reload()}
-            className="btn-neon px-5 py-2.5 rounded-xl font-mono text-xs flex items-center space-x-2"
-          >
-            <Camera className="w-4 h-4" />
-            <span>Reintentar Permisos</span>
-          </button>
         </div>
       )}
 
-      {/* Help & Tutorial Modal */}
       <HelpModal isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
     </main>
   );

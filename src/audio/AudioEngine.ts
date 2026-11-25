@@ -1,14 +1,13 @@
 import { InstrumentTimbre } from '../types';
 
 export class AudioEngine {
-  private ctx: AudioContext | null = null;
+  public ctx: AudioContext | null = null;
   private masterGain: GainNode | null = null;
-  private compressor: DynamicsCompressorNode | null = null;
-  private reverbConvolver: ConvolverNode | null = null;
-  private isInitialized = false;
+  private isUnlocked = false;
   private currentTimbre: InstrumentTimbre = 'acoustic-guitar';
+  private onStateChangeListeners: ((state: AudioContextState) => void)[] = [];
+
   private scaleNotes = [
-    // Frequencies and note names for C Minor Pentatonic across 3 octaves
     { note: 'C2', freq: 65.41 },
     { note: 'Eb2', freq: 77.78 },
     { note: 'F2', freq: 87.31 },
@@ -33,54 +32,56 @@ export class AudioEngine {
   ];
 
   constructor() {
-    // Lazy init on first user click or gesture
+    // Listen for global unlock gestures
+    if (typeof window !== 'undefined') {
+      const unlockHandler = () => {
+        this.unlockAudio();
+      };
+      window.addEventListener('click', unlockHandler, { passive: true });
+      window.addEventListener('keydown', unlockHandler, { passive: true });
+      window.addEventListener('touchstart', unlockHandler, { passive: true });
+    }
   }
 
-  public async init() {
-    if (this.isInitialized && this.ctx) {
+  public subscribeStateChange(cb: (state: AudioContextState) => void) {
+    this.onStateChangeListeners.push(cb);
+    if (this.ctx) {
+      cb(this.ctx.state);
+    }
+  }
+
+  public async unlockAudio(): Promise<boolean> {
+    try {
+      if (!this.ctx) {
+        const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+        this.ctx = new AudioContextClass();
+      }
+
       if (this.ctx.state === 'suspended') {
         await this.ctx.resume();
       }
-      return;
+
+      // Create master gain
+      if (!this.masterGain) {
+        this.masterGain = this.ctx.createGain();
+        this.masterGain.gain.setValueAtTime(0.85, this.ctx.currentTime);
+        this.masterGain.connect(this.ctx.destination);
+      }
+
+      this.isUnlocked = this.ctx.state === 'running';
+      this.notifyState();
+      return this.isUnlocked;
+    } catch (e) {
+      console.warn('Audio unlock error:', e);
+      return false;
     }
+  }
 
-    const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    this.ctx = new AudioContextClass();
-
-    if (this.ctx.state === 'suspended') {
-      await this.ctx.resume();
+  private notifyState() {
+    if (this.ctx) {
+      const state = this.ctx.state;
+      this.onStateChangeListeners.forEach((cb) => cb(state));
     }
-
-    // Safety master compressor
-    this.compressor = this.ctx.createDynamicsCompressor();
-    this.compressor.threshold.setValueAtTime(-12, this.ctx.currentTime);
-    this.compressor.knee.setValueAtTime(10, this.ctx.currentTime);
-    this.compressor.ratio.setValueAtTime(6, this.ctx.currentTime);
-    this.compressor.attack.setValueAtTime(0.003, this.ctx.currentTime);
-    this.compressor.release.setValueAtTime(0.25, this.ctx.currentTime);
-
-    // Master Gain
-    this.masterGain = this.ctx.createGain();
-    this.masterGain.gain.setValueAtTime(0.7, this.ctx.currentTime);
-
-    // Synthetic Impulse Reverb for spatial air ambiance
-    this.reverbConvolver = this.createSyntheticReverb(this.ctx, 1.8, 2.0);
-
-    const dryGain = this.ctx.createGain();
-    dryGain.gain.setValueAtTime(0.75, this.ctx.currentTime);
-
-    const wetGain = this.ctx.createGain();
-    wetGain.gain.setValueAtTime(0.25, this.ctx.currentTime);
-
-    this.masterGain.connect(dryGain);
-    this.masterGain.connect(this.reverbConvolver);
-    this.reverbConvolver.connect(wetGain);
-
-    dryGain.connect(this.compressor);
-    wetGain.connect(this.compressor);
-    this.compressor.connect(this.ctx.destination);
-
-    this.isInitialized = true;
   }
 
   public setTimbre(timbre: InstrumentTimbre) {
@@ -93,16 +94,9 @@ export class AudioEngine {
     }
   }
 
-  /**
-   * Maps a string length (in pixels) to a musical note and frequency.
-   * Longer string = lower pitch (bass), shorter string = higher pitch (harp/guitar solo).
-   */
   public calculateFrequencyFromLength(lengthPx: number, minPx = 60, maxPx = 750): { freq: number; noteName: string } {
     const clampedLength = Math.max(minPx, Math.min(maxPx, lengthPx));
-    // Inverted ratio: 0 (shortest, highest pitch) to 1 (longest, lowest pitch)
     const ratio = (clampedLength - minPx) / (maxPx - minPx);
-
-    // Map into the scaleNotes array from highest note (index 0 reversed) to lowest
     const noteIndex = Math.floor((1 - ratio) * (this.scaleNotes.length - 1));
     const selected = this.scaleNotes[noteIndex] || this.scaleNotes[0];
 
@@ -113,21 +107,24 @@ export class AudioEngine {
   }
 
   /**
-   * Plucks a string with given frequency and velocity (0..1)
+   * Main string pluck trigger. Loud, clear, zero-latency physical synthesis.
    */
-  public pluckString(freq: number, velocity = 0.8) {
-    if (!this.ctx || !this.masterGain) {
-      this.init().then(() => this.pluckString(freq, velocity));
+  public pluckString(freq: number, velocity = 0.9) {
+    // Guarantee AudioContext exists and is running
+    if (!this.ctx || !this.masterGain || this.ctx.state !== 'running') {
+      this.unlockAudio().then(() => this.executePluck(freq, velocity));
       return;
     }
 
-    if (this.ctx.state === 'suspended') {
-      this.ctx.resume();
-    }
+    this.executePluck(freq, velocity);
+  }
+
+  private executePluck(freq: number, velocity: number) {
+    if (!this.ctx || !this.masterGain) return;
 
     switch (this.currentTimbre) {
       case 'acoustic-guitar':
-        this.playKarplusStrong(freq, velocity);
+        this.playAcousticString(freq, velocity);
         break;
       case 'electric-lead':
         this.playElectricSynth(freq, velocity);
@@ -142,70 +139,73 @@ export class AudioEngine {
   }
 
   /**
-   * Karplus-Strong physical plucked string synthesis algorithm.
-   * Simulates real acoustic nylon/steel strings.
+   * Highly realistic Plucked Acoustic String (Karplus-Strong Hybrid)
+   * Combines initial pick transient burst with dual resonant harmonic oscillators
+   * and an exponential damping filter sweep.
    */
-  private playKarplusStrong(freq: number, velocity: number) {
+  private playAcousticString(freq: number, velocity: number) {
     if (!this.ctx || !this.masterGain) return;
+    const now = this.ctx.currentTime;
 
-    const sampleRate = this.ctx.sampleRate;
-    const periodSamples = Math.round(sampleRate / freq);
-    if (periodSamples <= 0) return;
-
-    // Excitation noise buffer (finger/pick pluck)
-    const noiseBuffer = this.ctx.createBuffer(1, periodSamples, sampleRate);
-    const output = noiseBuffer.getChannelData(0);
-    for (let i = 0; i < periodSamples; i++) {
-      // Pinkish shaped noise burst
-      output[i] = (Math.random() * 2 - 1) * Math.exp(-3 * (i / periodSamples));
+    // 1. Pick Attack Transient (White Noise Burst)
+    const attackSamples = Math.floor(this.ctx.sampleRate * 0.012); // 12ms pick impulse
+    const attackBuffer = this.ctx.createBuffer(1, attackSamples, this.ctx.sampleRate);
+    const attackData = attackBuffer.getChannelData(0);
+    for (let i = 0; i < attackSamples; i++) {
+      attackData[i] = (Math.random() * 2 - 1) * Math.exp(-6 * (i / attackSamples));
     }
 
-    const noiseSource = this.ctx.createBufferSource();
-    noiseSource.buffer = noiseBuffer;
+    const attackNode = this.ctx.createBufferSource();
+    attackNode.buffer = attackBuffer;
 
-    // Delay loop for fundamental frequency
-    const delayNode = this.ctx.createDelay();
-    delayNode.delayTime.setValueAtTime(1 / freq, this.ctx.currentTime);
+    const attackFilter = this.ctx.createBiquadFilter();
+    attackFilter.type = 'bandpass';
+    attackFilter.frequency.setValueAtTime(freq * 3, now);
+    attackFilter.Q.setValueAtTime(3, now);
 
-    // Feedback gain (damping sustain factor)
-    const feedbackGain = this.ctx.createGain();
-    const sustain = 0.985 - (freq / 4000) * 0.05; // High frequencies decay faster
-    feedbackGain.gain.setValueAtTime(Math.max(0.9, Math.min(0.99, sustain)), this.ctx.currentTime);
+    const attackGain = this.ctx.createGain();
+    attackGain.gain.setValueAtTime(velocity * 0.6, now);
+    attackGain.gain.exponentialRampToValueAtTime(0.001, now + 0.025);
 
-    // Lowpass filter in the loop (simulates string wood dispersion)
-    const filter = this.ctx.createBiquadFilter();
-    filter.type = 'lowpass';
-    filter.frequency.setValueAtTime(Math.min(freq * 6, 8000), this.ctx.currentTime);
+    attackNode.connect(attackFilter);
+    attackFilter.connect(attackGain);
+    attackGain.connect(this.masterGain);
 
-    // Envelope gain
-    const envGain = this.ctx.createGain();
-    envGain.gain.setValueAtTime(velocity * 0.9, this.ctx.currentTime);
-    envGain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + 3.0);
+    attackNode.start(now);
 
-    // Connections
-    noiseSource.connect(delayNode);
-    delayNode.connect(filter);
-    filter.connect(feedbackGain);
-    feedbackGain.connect(delayNode); // feedback loop
+    // 2. Fundamental & Second Harmonic String Body Resonators
+    const osc1 = this.ctx.createOscillator();
+    const osc2 = this.ctx.createOscillator();
+    osc1.type = 'triangle';
+    osc2.type = 'sawtooth';
 
-    filter.connect(envGain);
-    envGain.connect(this.masterGain);
+    osc1.frequency.setValueAtTime(freq, now);
+    osc2.frequency.setValueAtTime(freq * 2.002, now); // Octave overtone
 
-    noiseSource.start(this.ctx.currentTime);
-    noiseSource.stop(this.ctx.currentTime + (1 / freq));
+    // Lowpass filter simulates the wooden soundboard damping high frequencies first
+    const bodyFilter = this.ctx.createBiquadFilter();
+    bodyFilter.type = 'lowpass';
+    bodyFilter.frequency.setValueAtTime(Math.min(freq * 7, 7500), now);
+    bodyFilter.frequency.exponentialRampToValueAtTime(Math.max(freq * 1.5, 200), now + 1.8);
+    bodyFilter.Q.setValueAtTime(4.0, now);
 
-    // Cleanup after decay
-    setTimeout(() => {
-      try {
-        noiseSource.disconnect();
-        delayNode.disconnect();
-        filter.disconnect();
-        feedbackGain.disconnect();
-        envGain.disconnect();
-      } catch {
-        // ignore
-      }
-    }, 3200);
+    // String amplitude envelope (fast attack, exponential decay)
+    const stringGain = this.ctx.createGain();
+    stringGain.gain.setValueAtTime(0.0001, now);
+    stringGain.gain.linearRampToValueAtTime(velocity * 0.95, now + 0.006);
+    // Lower strings sustain longer than high strings (physics of mass/tension)
+    const sustainDuration = Math.max(1.2, Math.min(3.5, 400 / freq));
+    stringGain.gain.exponentialRampToValueAtTime(0.0001, now + sustainDuration);
+
+    osc1.connect(bodyFilter);
+    osc2.connect(bodyFilter);
+    bodyFilter.connect(stringGain);
+    stringGain.connect(this.masterGain);
+
+    osc1.start(now);
+    osc2.start(now);
+    osc1.stop(now + sustainDuration + 0.1);
+    osc2.stop(now + sustainDuration + 0.1);
   }
 
   /**
@@ -220,18 +220,18 @@ export class AudioEngine {
     osc1.type = 'sawtooth';
     osc2.type = 'triangle';
     osc1.frequency.setValueAtTime(freq, now);
-    osc2.frequency.setValueAtTime(freq * 1.003, now); // slight detune for chorus richness
+    osc2.frequency.setValueAtTime(freq * 1.004, now);
 
     const filter = this.ctx.createBiquadFilter();
     filter.type = 'lowpass';
-    filter.frequency.setValueAtTime(freq * 2, now);
-    filter.frequency.exponentialRampToValueAtTime(freq * 6, now + 0.04);
-    filter.frequency.exponentialRampToValueAtTime(freq * 1.2, now + 1.2);
-    filter.Q.setValueAtTime(6, now);
+    filter.frequency.setValueAtTime(freq * 3, now);
+    filter.frequency.exponentialRampToValueAtTime(freq * 8, now + 0.05);
+    filter.frequency.exponentialRampToValueAtTime(freq * 1.5, now + 1.2);
+    filter.Q.setValueAtTime(5, now);
 
     const gain = this.ctx.createGain();
     gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.linearRampToValueAtTime(velocity * 0.7, now + 0.015);
+    gain.gain.linearRampToValueAtTime(velocity * 0.8, now + 0.015);
     gain.gain.exponentialRampToValueAtTime(0.0001, now + 1.8);
 
     osc1.connect(filter);
@@ -262,15 +262,15 @@ export class AudioEngine {
 
     fundamental.frequency.setValueAtTime(freq, now);
     harmonic1.frequency.setValueAtTime(freq * 2, now);
-    harmonic2.frequency.setValueAtTime(freq * 3, now);
+    harmonic2.frequency.setValueAtTime(freq * 3.01, now);
 
     const gain = this.ctx.createGain();
     gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.linearRampToValueAtTime(velocity * 0.6, now + 0.008);
+    gain.gain.linearRampToValueAtTime(velocity * 0.8, now + 0.008);
     gain.gain.exponentialRampToValueAtTime(0.0001, now + 2.8);
 
     const harmGain = this.ctx.createGain();
-    harmGain.gain.setValueAtTime(0.3, now);
+    harmGain.gain.setValueAtTime(0.4, now);
 
     harmonic1.connect(harmGain);
     harmonic2.connect(harmGain);
@@ -309,7 +309,7 @@ export class AudioEngine {
 
     const gain = this.ctx.createGain();
     gain.gain.setValueAtTime(0.001, now);
-    gain.gain.linearRampToValueAtTime(velocity * 0.8, now + 0.02);
+    gain.gain.linearRampToValueAtTime(velocity * 0.9, now + 0.02);
     gain.gain.exponentialRampToValueAtTime(0.0001, now + 2.2);
 
     osc.connect(filter);
@@ -324,25 +324,15 @@ export class AudioEngine {
   }
 
   /**
-   * Generates a spatial stereo reverb impulse response
+   * Plays a quick 3-note test chord to verify sound immediately
    */
-  private createSyntheticReverb(ctx: AudioContext, duration: number, decay: number): ConvolverNode {
-    const convolver = ctx.createConvolver();
-    const rate = ctx.sampleRate;
-    const length = rate * duration;
-    const impulse = ctx.createBuffer(2, length, rate);
-    const left = impulse.getChannelData(0);
-    const right = impulse.getChannelData(1);
-
-    for (let i = 0; i < length; i++) {
-      const t = i / rate;
-      const factor = Math.exp(-t * decay);
-      left[i] = (Math.random() * 2 - 1) * factor;
-      right[i] = (Math.random() * 2 - 1) * factor;
-    }
-
-    convolver.buffer = impulse;
-    return convolver;
+  public testChord() {
+    this.unlockAudio().then(() => {
+      this.pluckString(196.00, 0.9); // G3
+      setTimeout(() => this.pluckString(246.94, 0.85), 120); // B3
+      setTimeout(() => this.pluckString(293.66, 0.85), 240); // D4
+      setTimeout(() => this.pluckString(392.00, 0.95), 360); // G4
+    });
   }
 }
 
