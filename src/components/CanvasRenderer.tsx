@@ -1,21 +1,19 @@
 import React, { useEffect, useRef } from 'react';
-import { AeroString, DrumPad, HandData, Particle, PlayMode, ScreenPoint, Shockwave } from '../types';
+import { AeroString, HandData, Particle, PlayMode, ScreenPoint, Shockwave, ThereminState } from '../types';
 import { distance2D, pointToSegmentDistance } from '../utils/geometry';
 import { soundManager } from '../audio/AudioEngine';
-import { drumsManager } from '../audio/DrumsEngine';
 
 interface CanvasRendererProps {
   videoRef: React.RefObject<HTMLVideoElement>;
   hands: HandData[];
   strings: AeroString[];
-  drumPads: DrumPad[];
   playMode: PlayMode;
   videoDimming: number;
   onAddString: (newString: AeroString) => void;
   onPluck: (stringData: { note: string; freq: number; length: number }) => void;
-  onDrumHit: (pad: DrumPad, velocity: number) => void;
   currentNoteHover: string | null;
   setCurrentNoteHover: (note: string | null) => void;
+  thereminState?: ThereminState;
 }
 
 const HAND_CONNECTIONS = [
@@ -31,24 +29,18 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
   videoRef,
   hands,
   strings,
-  drumPads,
   playMode,
   videoDimming,
   onAddString,
   onPluck,
-  onDrumHit,
   setCurrentNoteHover,
+  thereminState,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const draftStartRef = useRef<ScreenPoint | null>(null);
   const draftCurrentRef = useRef<ScreenPoint | null>(null);
   const particlesRef = useRef<Particle[]>([]);
   const shockwavesRef = useRef<Shockwave[]>([]);
-
-  // Velocity and physical strike tracking
-  const previousHandTipsRef = useRef<Map<string, { point: ScreenPoint; time: number; vy: number }>>(new Map());
-  // Arming state per (padId + handKey) to require real rebound/stroke per hit
-  const padArmStatesRef = useRef<Map<string, boolean>>(new Map());
 
   // Mouse fallback
   const isMouseDownRef = useRef(false);
@@ -128,159 +120,6 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
         }
       }
 
-      // Collect interaction pointers (drumstick tips or finger picks)
-      const drumsticks: { point: ScreenPoint; vy: number; key: string }[] = [];
-
-      hands.forEach((hand, hIdx) => {
-        const key = `${hand.handedness}-${hIdx}`;
-        const prev = previousHandTipsRef.current.get(key);
-        let vy = 0;
-
-        if (prev) {
-          const dt = Math.max(1, now - prev.time);
-          vy = (hand.indexTip.y - prev.point.y) / dt; // positive = moving downwards
-        }
-
-        previousHandTipsRef.current.set(key, { point: hand.indexTip, time: now, vy });
-        drumsticks.push({ point: hand.indexTip, vy, key });
-      });
-
-      // -------------------------------------------------------------
-      // MODE: AIR DRUMS (Batería Completa en el Aire)
-      // -------------------------------------------------------------
-      if (playMode === 'air-drums') {
-        // Render Drum Pads
-        drumPads.forEach((pad) => {
-          const px = pad.relX * width;
-          const py = pad.relY * height;
-          const pr = pad.relRadius * minDim;
-          const timeSinceHit = now - pad.lastHitTime;
-          const isHitActive = timeSinceHit < 220;
-          const hitIntensity = isHitActive ? Math.exp(-timeSinceHit / 80) : 0;
-
-          ctx.save();
-
-          // 1. Outer Neon Aura
-          ctx.beginPath();
-          ctx.arc(px, py, pr, 0, Math.PI * 2);
-          ctx.fillStyle = isHitActive ? 'rgba(255, 255, 255, 0.4)' : 'rgba(13, 37, 96, 0.45)';
-          ctx.fill();
-
-          ctx.strokeStyle = isHitActive ? '#ffffff' : pad.color;
-          ctx.lineWidth = isHitActive ? 6 : 3.5;
-          ctx.shadowColor = isHitActive ? '#ffffff' : pad.color;
-          ctx.shadowBlur = isHitActive ? 30 : 16;
-          ctx.stroke();
-
-          // 2. Concentric Tuning Rings
-          ctx.beginPath();
-          ctx.arc(px, py, pr * 0.75, 0, Math.PI * 2);
-          ctx.strokeStyle = pad.color;
-          ctx.lineWidth = 1.5;
-          ctx.globalAlpha = 0.5 + hitIntensity * 0.5;
-          ctx.stroke();
-
-          ctx.beginPath();
-          ctx.arc(px, py, pr * 0.45, 0, Math.PI * 2);
-          ctx.lineWidth = 1;
-          ctx.stroke();
-
-          // Center Bullseye Trigger
-          ctx.beginPath();
-          ctx.arc(px, py, pr * 0.18, 0, Math.PI * 2);
-          ctx.fillStyle = isHitActive ? '#ffffff' : pad.color;
-          ctx.fill();
-
-          // 3. Holographic Badge (Instrument Name & Key Trigger)
-          ctx.globalAlpha = 1.0;
-          ctx.font = 'bold 13px "JetBrains Mono", monospace';
-          ctx.fillStyle = '#ffffff';
-          ctx.textAlign = 'center';
-          ctx.shadowColor = '#000000';
-          ctx.shadowBlur = 6;
-          ctx.fillText(pad.name.toUpperCase(), px, py - 4);
-
-          ctx.font = '600 10px "JetBrains Mono", monospace';
-          ctx.fillStyle = pad.color;
-          ctx.fillText(`[ ${pad.keyTrigger} ]`, px, py + 14);
-
-          ctx.restore();
-
-          // Physical Strike Check: requires active downward stroke and rebound/re-arm cycle
-          drumsticks.forEach((stick) => {
-            const dist = distance2D(stick.point, { x: px, y: py });
-            const armKey = `${pad.id}-${stick.key}`;
-            const isArmed = padArmStatesRef.current.get(armKey) ?? true;
-
-            // 1. RE-ARM conditions: Hand is outside pad OR moving upwards (rebound)
-            if (dist > pr * 1.15) {
-              padArmStatesRef.current.set(armKey, true);
-            } else if (stick.vy < -0.10) {
-              // Upward rebound re-arms the drum pad even inside the zone!
-              padArmStatesRef.current.set(armKey, true);
-            }
-
-            // 2. STRIKE condition: Inside pad, ARMED, and moving downwards
-            if (dist <= pr && isArmed && stick.vy > 0.15) {
-              // Disarm immediately so it won't trigger continuously
-              padArmStatesRef.current.set(armKey, false);
-
-              // Calculate velocity from strike speed (0.35 to 1.0)
-              const hitVelocity = Math.max(0.35, Math.min(1.0, 0.45 + stick.vy * 0.7));
-
-              pad.lastHitTime = now;
-              pad.hitVelocity = hitVelocity;
-
-              drumsManager.trigger(pad.type, hitVelocity);
-              onDrumHit(pad, hitVelocity);
-
-              spawnShockwave(px, py, pr, pad.color);
-              spawnSparks(stick.point.x, stick.point.y, pad.color, 24);
-            }
-          });
-        });
-
-        // Draw Drumsticks attached to hands
-        hands.forEach((hand) => {
-          ctx.save();
-          const tip = hand.indexTip;
-          const wrist = hand.wrist;
-
-          // Glowing Drumstick Shaft
-          ctx.beginPath();
-          ctx.moveTo(wrist.x, wrist.y);
-          ctx.lineTo(tip.x, tip.y);
-          ctx.strokeStyle = 'rgba(0, 242, 255, 0.7)';
-          ctx.lineWidth = 6;
-          ctx.shadowColor = '#00f2ff';
-          ctx.shadowBlur = 15;
-          ctx.stroke();
-
-          // White Core
-          ctx.beginPath();
-          ctx.moveTo(wrist.x, wrist.y);
-          ctx.lineTo(tip.x, tip.y);
-          ctx.strokeStyle = '#ffffff';
-          ctx.lineWidth = 2;
-          ctx.stroke();
-
-          // Drumstick Tip (Mallet Head)
-          ctx.beginPath();
-          ctx.arc(tip.x, tip.y, 14, 0, Math.PI * 2);
-          ctx.fillStyle = '#EF3800';
-          ctx.shadowColor = '#EF3800';
-          ctx.shadowBlur = 20;
-          ctx.fill();
-
-          ctx.font = 'bold 9px "JetBrains Mono", monospace';
-          ctx.fillStyle = '#ffffff';
-          ctx.textAlign = 'center';
-          ctx.fillText('BAQUETA', tip.x, tip.y - 18);
-
-          ctx.restore();
-        });
-      }
-
       // -------------------------------------------------------------
       // MODE: AAC NON-VERBAL COMMUNICATOR LASER POINTER
       // -------------------------------------------------------------
@@ -319,9 +158,219 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
       }
 
       // -------------------------------------------------------------
+      // MODE: THEREMIN (Antenas de Tono & Volumen + Campo Electromagnético)
+      // -------------------------------------------------------------
+      if (playMode === 'theremin') {
+        const pitchRodX = width * 0.90;
+        const pitchRodTop = height * 0.12;
+        const pitchRodBottom = height * 0.88;
+
+        const volLoopX = width * 0.14;
+        const volLoopY = height * 0.80;
+
+        // 1. Right Pitch Rod Antenna (Antena Vertical de Tono)
+        ctx.save();
+        // Base plate
+        ctx.beginPath();
+        ctx.ellipse(pitchRodX, pitchRodBottom + 8, 32, 10, 0, 0, Math.PI * 2);
+        ctx.fillStyle = '#050508';
+        ctx.strokeStyle = '#00f2ff';
+        ctx.lineWidth = 2.5;
+        ctx.shadowColor = '#00f2ff';
+        ctx.shadowBlur = 16;
+        ctx.fill();
+        ctx.stroke();
+
+        // Chrome / Cyan Rod
+        ctx.beginPath();
+        ctx.moveTo(pitchRodX, pitchRodBottom);
+        ctx.lineTo(pitchRodX, pitchRodTop);
+        ctx.strokeStyle = '#00f2ff';
+        ctx.lineWidth = 4;
+        ctx.shadowColor = '#00f2ff';
+        ctx.shadowBlur = 22;
+        ctx.stroke();
+
+        // Top Emitter Sphere
+        ctx.beginPath();
+        ctx.arc(pitchRodX, pitchRodTop, 12, 0, Math.PI * 2);
+        ctx.fillStyle = '#ffffff';
+        ctx.shadowColor = '#00f2ff';
+        ctx.shadowBlur = 28;
+        ctx.fill();
+
+        // Pitch scale markers along the rod
+        const pitchMarkers = [
+          { note: 'Sol 6 (G6)', ratio: 1.0 },
+          { note: 'Do 6 (C6)', ratio: 0.85 },
+          { note: 'La 5 (A5)', ratio: 0.74 },
+          { note: 'Do 5 (C5)', ratio: 0.60 },
+          { note: 'La 4 (A4 • 440Hz)', ratio: 0.50 },
+          { note: 'Do 4 (C4)', ratio: 0.36 },
+          { note: 'La 3 (A3)', ratio: 0.25 },
+          { note: 'Do 3 (C3)', ratio: 0.12 },
+          { note: 'Do 2 (C2)', ratio: 0.0 },
+        ];
+
+        pitchMarkers.forEach((m) => {
+          const my = pitchRodBottom - m.ratio * (pitchRodBottom - pitchRodTop);
+          ctx.beginPath();
+          ctx.moveTo(pitchRodX - 8, my);
+          ctx.lineTo(pitchRodX + 8, my);
+          ctx.strokeStyle = 'rgba(0, 242, 255, 0.6)';
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+
+          ctx.font = '9px "JetBrains Mono", monospace';
+          ctx.fillStyle = 'rgba(0, 242, 255, 0.85)';
+          ctx.textAlign = 'right';
+          ctx.fillText(m.note, pitchRodX - 12, my + 3);
+        });
+
+        // 2. Left Volume Loop Antenna (Bucle Horizontal de Volumen)
+        // Base plate
+        ctx.beginPath();
+        ctx.ellipse(volLoopX, volLoopY + 28, 26, 8, 0, 0, Math.PI * 2);
+        ctx.fillStyle = '#050508';
+        ctx.strokeStyle = '#f59e0b';
+        ctx.lineWidth = 2.5;
+        ctx.shadowColor = '#f59e0b';
+        ctx.shadowBlur = 14;
+        ctx.fill();
+        ctx.stroke();
+
+        // Support pole
+        ctx.beginPath();
+        ctx.moveTo(volLoopX, volLoopY + 28);
+        ctx.lineTo(volLoopX, volLoopY);
+        ctx.strokeStyle = '#f59e0b';
+        ctx.lineWidth = 3.5;
+        ctx.shadowColor = '#f59e0b';
+        ctx.shadowBlur = 12;
+        ctx.stroke();
+
+        // Curved Loop
+        ctx.beginPath();
+        ctx.ellipse(volLoopX, volLoopY, 52, 22, 0, 0, Math.PI * 2);
+        ctx.strokeStyle = '#f59e0b';
+        ctx.lineWidth = 3.5;
+        ctx.shadowColor = '#f59e0b';
+        ctx.shadowBlur = 20;
+        ctx.stroke();
+
+        // Volume elevation scale rings extending upwards
+        for (let vi = 1; vi <= 4; vi++) {
+          const vRatio = vi * 0.25;
+          const vy = volLoopY - vRatio * (volLoopY - height * 0.18);
+          ctx.beginPath();
+          ctx.ellipse(volLoopX, vy, 36 - vi * 4, 12 - vi * 1.5, 0, 0, Math.PI * 2);
+          ctx.strokeStyle = `rgba(245, 158, 11, ${0.15 + vi * 0.08})`;
+          ctx.lineWidth = 1;
+          ctx.setLineDash([4, 4]);
+          ctx.stroke();
+          ctx.setLineDash([]);
+
+          ctx.font = '9px "JetBrains Mono", monospace';
+          ctx.fillStyle = 'rgba(245, 158, 11, 0.7)';
+          ctx.textAlign = 'left';
+          ctx.fillText(`${vi * 25}% VOL`, volLoopX + 44, vy + 3);
+        }
+        ctx.restore();
+
+        // 3. Dynamic Interactive Field & Hand Resonance
+        if (thereminState && thereminState.isActive) {
+          const { pitchHandPoint, volumeHandPoint, frequency, volume, closestNote, closestNoteEs, cents } = thereminState;
+
+          // Resonance waves around Pitch Hand
+          if (pitchHandPoint) {
+            ctx.save();
+            const wavelength = Math.max(16, Math.min(60, 4800 / frequency));
+            const numRings = 4;
+            const phase = (now * 0.06) % wavelength;
+
+            for (let i = 0; i < numRings; i++) {
+              const r = phase + i * wavelength;
+              const alpha = Math.max(0, (1 - r / (numRings * wavelength)) * volume);
+              ctx.beginPath();
+              ctx.arc(pitchHandPoint.x, pitchHandPoint.y, r, 0, Math.PI * 2);
+              ctx.strokeStyle = `rgba(0, 242, 255, ${alpha * 0.8})`;
+              ctx.lineWidth = 2.5;
+              ctx.shadowColor = '#00f2ff';
+              ctx.shadowBlur = 16;
+              ctx.stroke();
+            }
+
+            // Beam from Hand to Pitch Rod
+            ctx.beginPath();
+            ctx.moveTo(pitchHandPoint.x, pitchHandPoint.y);
+            ctx.lineTo(pitchRodX, pitchHandPoint.y);
+            ctx.strokeStyle = `rgba(0, 242, 255, ${volume * 0.65})`;
+            ctx.lineWidth = 2;
+            ctx.setLineDash([6, 6]);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // Floating Holographic Tuner Badge
+            const badgeY = pitchHandPoint.y - 48;
+            ctx.beginPath();
+            ctx.roundRect(pitchHandPoint.x - 70, badgeY - 24, 140, 48, 12);
+            ctx.fillStyle = 'rgba(5, 5, 8, 0.85)';
+            ctx.strokeStyle = Math.abs(cents) < 12 ? '#10b981' : '#00f2ff';
+            ctx.lineWidth = 2;
+            ctx.shadowColor = Math.abs(cents) < 12 ? '#10b981' : '#00f2ff';
+            ctx.shadowBlur = 20;
+            ctx.fill();
+            ctx.stroke();
+
+            // Note Text
+            ctx.font = 'bold 16px "JetBrains Mono", monospace';
+            ctx.fillStyle = '#ffffff';
+            ctx.textAlign = 'center';
+            ctx.fillText(`${closestNoteEs} (${closestNote})`, pitchHandPoint.x, badgeY - 4);
+
+            // Frequency + Cents
+            ctx.font = '10px "JetBrains Mono", monospace';
+            ctx.fillStyle = Math.abs(cents) < 12 ? '#10b981' : '#f59e0b';
+            const centsStr = cents > 0 ? `+${cents}¢` : `${cents}¢`;
+            ctx.fillText(`${Math.round(frequency)} Hz • ${centsStr}`, pitchHandPoint.x, badgeY + 14);
+
+            ctx.restore();
+          }
+
+          // Resonance glow around Volume Hand
+          if (volumeHandPoint) {
+            ctx.save();
+            ctx.beginPath();
+            ctx.moveTo(volumeHandPoint.x, volumeHandPoint.y);
+            ctx.lineTo(volLoopX, volLoopY);
+            ctx.strokeStyle = `rgba(245, 158, 11, ${volume * 0.7})`;
+            ctx.lineWidth = 2.5;
+            ctx.shadowColor = '#f59e0b';
+            ctx.shadowBlur = 18;
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.arc(volumeHandPoint.x, volumeHandPoint.y, 18, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(245, 158, 11, ${volume * 0.4})`;
+            ctx.strokeStyle = '#f59e0b';
+            ctx.lineWidth = 2;
+            ctx.fill();
+            ctx.stroke();
+
+            // Volume label
+            ctx.font = 'bold 11px "JetBrains Mono", monospace';
+            ctx.fillStyle = '#f59e0b';
+            ctx.textAlign = 'center';
+            ctx.fillText(`VOL ${Math.round(volume * 100)}%`, volumeHandPoint.x, volumeHandPoint.y - 25);
+            ctx.restore();
+          }
+        }
+      }
+
+      // -------------------------------------------------------------
       // MODE: STRINGS & AIR HARP MODES
       // -------------------------------------------------------------
-      if (playMode !== 'air-drums' && playMode !== 'aac-communicator') {
+      if (playMode !== 'air-drums' && playMode !== 'aac-communicator' && playMode !== 'theremin') {
         const pointers = hands.map((h) => ({ point: h.indexTip, isPinching: h.isPinching, isPick: true }));
         if (isMouseDownRef.current && mousePointRef.current) {
           pointers.push({ point: mousePointRef.current, isPinching: true, isPick: true });
@@ -650,34 +699,12 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
 
     animationFrameId = requestAnimationFrame(render);
     return () => cancelAnimationFrame(animationFrameId);
-  }, [hands, strings, drumPads, playMode, videoDimming, onAddString, onPluck, onDrumHit, setCurrentNoteHover, videoRef]);
+  }, [hands, strings, playMode, videoDimming, onAddString, onPluck, setCurrentNoteHover, videoRef, thereminState]);
 
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
     isMouseDownRef.current = true;
     const pt = { x: e.clientX, y: e.clientY };
     mousePointRef.current = pt;
-
-    if (playMode === 'air-drums') {
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-      const width = canvas.width;
-      const height = canvas.height;
-      const minDim = Math.min(width, height);
-
-      drumPads.forEach((pad) => {
-        const px = pad.relX * width;
-        const py = pad.relY * height;
-        const pr = pad.relRadius * minDim;
-        if (distance2D(pt, { x: px, y: py }) <= pr) {
-          pad.lastHitTime = performance.now();
-          pad.hitVelocity = 0.9;
-          drumsManager.trigger(pad.type, 0.9);
-          onDrumHit(pad, 0.9);
-          spawnShockwave(px, py, pr, pad.color);
-          spawnSparks(pt.x, pt.y, pad.color, 24);
-        }
-      });
-    }
   };
 
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -691,13 +718,39 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
     mousePointRef.current = null;
   };
 
+  // Touch handlers for iPad / iPhone mobile touch interaction
+  const handleTouchStart = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    if (e.touches.length > 0) {
+      const touch = e.touches[0];
+      const rect = e.currentTarget.getBoundingClientRect();
+      isMouseDownRef.current = true;
+      mousePointRef.current = { x: touch.clientX - rect.left, y: touch.clientY - rect.top };
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    if (e.touches.length > 0) {
+      const touch = e.touches[0];
+      const rect = e.currentTarget.getBoundingClientRect();
+      mousePointRef.current = { x: touch.clientX - rect.left, y: touch.clientY - rect.top };
+    }
+  };
+
+  const handleTouchEnd = () => {
+    isMouseDownRef.current = false;
+    mousePointRef.current = null;
+  };
+
   return (
     <canvas
       ref={canvasRef}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
-      className="absolute inset-0 w-full h-full object-cover z-10 cursor-crosshair"
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+      className="absolute inset-0 w-full h-full object-cover z-10 cursor-crosshair touch-none"
     />
   );
 };

@@ -1,24 +1,13 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { AeroString, DrumPad, HandData, InstrumentTimbre, PlayMode } from './types';
+import { AeroString, HandData, InstrumentTimbre, PlayMode, ThereminScale, ThereminState, ThereminTimbre } from './types';
 import { handTracker } from './vision/HandTracker';
 import { soundManager } from './audio/AudioEngine';
-import { drumsManager } from './audio/DrumsEngine';
+import { thereminEngine } from './audio/ThereminEngine';
 import { CanvasRenderer } from './components/CanvasRenderer';
 import { HUDOverlay } from './components/HUDOverlay';
 import { HelpModal } from './components/HelpModal';
 import { AACView } from './components/AACView';
 import { Sparkles, RefreshCw, ShieldAlert } from 'lucide-react';
-
-const INITIAL_DRUM_PADS: DrumPad[] = [
-  { id: 'crash', name: 'Crash Cymbal', shortName: 'Crash', type: 'crash', relX: 0.16, relY: 0.22, relRadius: 0.11, color: '#f59e0b', lastHitTime: 0, hitVelocity: 0, keyTrigger: 'C' },
-  { id: 'hihat', name: 'Hi-Hat (Charles)', shortName: 'Hi-Hat', type: 'hihat-closed', relX: 0.20, relY: 0.50, relRadius: 0.10, color: '#00f2ff', lastHitTime: 0, hitVelocity: 0, keyTrigger: 'H' },
-  { id: 'snare', name: 'Caja (Snare)', shortName: 'Snare', type: 'snare', relX: 0.36, relY: 0.70, relRadius: 0.12, color: '#EF3800', lastHitTime: 0, hitVelocity: 0, keyTrigger: 'S' },
-  { id: 'kick', name: 'Bombo (Kick)', shortName: 'Kick', type: 'kick', relX: 0.50, relY: 0.82, relRadius: 0.13, color: '#00f2ff', lastHitTime: 0, hitVelocity: 0, keyTrigger: 'K' },
-  { id: 'tom-high', name: 'Tom Alto (1)', shortName: 'Tom 1', type: 'tom-high', relX: 0.42, relY: 0.36, relRadius: 0.095, color: '#10b981', lastHitTime: 0, hitVelocity: 0, keyTrigger: 'T' },
-  { id: 'tom-mid', name: 'Tom Medio (2)', shortName: 'Tom 2', type: 'tom-high', relX: 0.58, relY: 0.36, relRadius: 0.095, color: '#10b981', lastHitTime: 0, hitVelocity: 0, keyTrigger: 'Y' },
-  { id: 'tom-low', name: 'Floor Tom', shortName: 'Floor', type: 'tom-low', relX: 0.68, relY: 0.70, relRadius: 0.12, color: '#EF3800', lastHitTime: 0, hitVelocity: 0, keyTrigger: 'F' },
-  { id: 'ride', name: 'Ride Cymbal', shortName: 'Ride', type: 'ride', relX: 0.84, relY: 0.25, relRadius: 0.12, color: '#f59e0b', lastHitTime: 0, hitVelocity: 0, keyTrigger: 'R' },
-];
 
 export const App: React.FC = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -32,20 +21,21 @@ export const App: React.FC = () => {
 
   const [hands, setHands] = useState<HandData[]>([]);
   const [strings, setStrings] = useState<AeroString[]>([]);
-  const [drumPads, setDrumPads] = useState<DrumPad[]>(INITIAL_DRUM_PADS);
-  const [playMode, setPlayMode] = useState<PlayMode>('air-drums'); // Air drums default!
+  const [playMode, setPlayMode] = useState<PlayMode>('theremin'); // Theremin es la estrella por defecto!
   const [timbre, setTimbre] = useState<InstrumentTimbre>('acoustic-guitar');
   const [isMuted, setIsMuted] = useState(false);
   const [lastPlucked, setLastPlucked] = useState<{ note: string; freq: number; length: number } | null>(null);
-  const [lastDrumHit, setLastDrumHit] = useState<{ name: string; velocity: number } | null>(null);
-  const [currentBpm, setCurrentBpm] = useState<number | null>(null);
-  const lastHitTimeRef = useRef<number>(0);
   const [hoverInfo, setHoverInfo] = useState<string | null>(null);
   const [fps, setFps] = useState(60);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [simulationMode, setSimulationMode] = useState(false);
   const [isImperialMode, setIsImperialMode] = useState(false);
   const [audioState, setAudioState] = useState<AudioContextState>('suspended');
+
+  // Theremin 1920 Etherwave Continuous Synthesis State
+  const [thereminState, setThereminState] = useState<ThereminState>(thereminEngine.getState());
+  const [thereminTimbre, setThereminTimbre] = useState<ThereminTimbre>('vintage-tube');
+  const [thereminScale, setThereminScale] = useState<ThereminScale>('continuous');
 
   useEffect(() => {
     soundManager.subscribeStateChange((state) => {
@@ -55,9 +45,9 @@ export const App: React.FC = () => {
 
   const handleUnlockAudio = async () => {
     await soundManager.unlockAudio();
-    drumsManager.trigger('kick', 0.9);
-    setTimeout(() => drumsManager.trigger('snare', 0.85), 180);
-    setTimeout(() => drumsManager.trigger('crash', 0.85), 360);
+    soundManager.pluckString(440.0, 0.85);
+    setTimeout(() => soundManager.pluckString(554.37, 0.85), 120);
+    setTimeout(() => soundManager.pluckString(659.25, 0.85), 240);
   };
 
   const frameCountRef = useRef(0);
@@ -142,24 +132,6 @@ export const App: React.FC = () => {
     await startCamera(deviceId);
   };
 
-  // Keyboard Fallback for Drums
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const key = e.key.toUpperCase();
-      const pad = drumPads.find((p) => p.keyTrigger === key);
-      if (pad) {
-        drumsManager.trigger(pad.type, 0.9);
-        setLastDrumHit({ name: pad.name, velocity: 0.9 });
-        setDrumPads((prev) =>
-          prev.map((p) => (p.id === pad.id ? { ...p, lastHitTime: performance.now(), hitVelocity: 0.9 } : p))
-        );
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [drumPads]);
-
   // 3. Detection Loop
   useEffect(() => {
     let animId: number;
@@ -169,6 +141,13 @@ export const App: React.FC = () => {
       if (video && video.readyState >= 2 && isVisionReady && !simulationMode) {
         const detected = handTracker.detectHands(video, window.innerWidth, window.innerHeight);
         setHands(detected);
+
+        if (playMode === 'theremin') {
+          const tState = thereminEngine.update(detected, window.innerWidth, window.innerHeight);
+          setThereminState({ ...tState });
+        } else {
+          thereminEngine.stop();
+        }
 
         frameCountRef.current++;
         const now = performance.now();
@@ -187,7 +166,7 @@ export const App: React.FC = () => {
     }
 
     return () => cancelAnimationFrame(animId);
-  }, [isVisionReady, simulationMode]);
+  }, [isVisionReady, simulationMode, playMode]);
 
   // 4. Audio Engine Sync
   useEffect(() => {
@@ -198,21 +177,16 @@ export const App: React.FC = () => {
     soundManager.setMasterVolume(isMuted ? 0 : 0.7);
   }, [isMuted]);
 
+  useEffect(() => {
+    thereminEngine.setTimbre(thereminTimbre);
+  }, [thereminTimbre]);
+
+  useEffect(() => {
+    thereminEngine.setScale(thereminScale);
+  }, [thereminScale]);
+
   const handlePluck = useCallback((info: { note: string; freq: number; length: number }) => {
     setLastPlucked(info);
-  }, []);
-
-  const handleDrumHit = useCallback((pad: DrumPad, velocity: number) => {
-    const now = performance.now();
-    if (lastHitTimeRef.current > 0) {
-      const deltaMs = now - lastHitTimeRef.current;
-      if (deltaMs > 160 && deltaMs < 2000) {
-        const instantBpm = Math.round(60000 / deltaMs);
-        setCurrentBpm(instantBpm);
-      }
-    }
-    lastHitTimeRef.current = now;
-    setLastDrumHit({ name: pad.name, velocity });
   }, []);
 
   const loadHarpPreset = useCallback(() => {
@@ -448,14 +422,13 @@ export const App: React.FC = () => {
         videoRef={videoRef}
         hands={hands}
         strings={strings}
-        drumPads={drumPads}
         playMode={playMode}
         videoDimming={videoDimming}
         onAddString={(newStr) => setStrings((prev) => [...prev, newStr])}
         onPluck={handlePluck}
-        onDrumHit={handleDrumHit}
         currentNoteHover={hoverInfo}
         setCurrentNoteHover={setHoverInfo}
+        thereminState={thereminState}
       />
 
       {playMode === 'aac-communicator' && (
@@ -478,8 +451,6 @@ export const App: React.FC = () => {
         isMuted={isMuted}
         setIsMuted={setIsMuted}
         lastPlucked={lastPlucked}
-        lastDrumHit={lastDrumHit}
-        currentBpm={currentBpm}
         hoverInfo={hoverInfo}
         handsDetectedCount={hands.length}
         fps={fps}
@@ -491,6 +462,11 @@ export const App: React.FC = () => {
         onSelectDevice={handleSelectDevice}
         audioState={audioState}
         onUnlockAudio={handleUnlockAudio}
+        thereminState={thereminState}
+        thereminTimbre={thereminTimbre}
+        setThereminTimbre={setThereminTimbre}
+        thereminScale={thereminScale}
+        setThereminScale={setThereminScale}
       />
 
       {/* Loading Overlay */}
@@ -503,7 +479,7 @@ export const App: React.FC = () => {
             <div className="absolute -inset-1 rounded-2xl border border-[#00f2ff] animate-ping opacity-25 pointer-events-none"></div>
           </div>
           <h2 className="text-2xl font-bold font-mono tracking-wider text-white mb-2">
-            AIR<span className="text-amber-400">DRUMS</span> & AERO<span className="text-[#00f2ff]">STRINGS</span> AR
+            THEREMIN<span className="text-[#00f2ff]">AR</span> & AERO<span className="text-[#EF3800]">STRINGS</span>
           </h2>
           <p className="text-sm font-mono text-cyan-300 mb-4 max-w-md">
             {loadingMsg}

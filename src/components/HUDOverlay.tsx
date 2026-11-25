@@ -1,5 +1,5 @@
 import React from 'react';
-import { PlayMode, InstrumentTimbre } from '../types';
+import { PlayMode, InstrumentTimbre, ThereminScale, ThereminState, ThereminTimbre } from '../types';
 import { 
   Sparkles, 
   Volume2, 
@@ -17,7 +17,9 @@ import {
   Disc3,
   Sword,
   Flame,
-  MessageSquare
+  MessageSquare,
+  RadioTower,
+  Waves
 } from 'lucide-react';
 import { soundManager } from '../audio/AudioEngine';
 
@@ -72,6 +74,11 @@ interface HUDOverlayProps {
   onSelectDevice: (id: string) => void;
   audioState: AudioContextState;
   onUnlockAudio: () => void;
+  thereminState?: ThereminState;
+  thereminTimbre?: ThereminTimbre;
+  setThereminTimbre?: (timbre: ThereminTimbre) => void;
+  thereminScale?: ThereminScale;
+  setThereminScale?: (scale: ThereminScale) => void;
 }
 
 export const HUDOverlay: React.FC<HUDOverlayProps> = ({
@@ -103,6 +110,11 @@ export const HUDOverlay: React.FC<HUDOverlayProps> = ({
   onSelectDevice,
   audioState,
   onUnlockAudio,
+  thereminState,
+  thereminTimbre,
+  setThereminTimbre,
+  thereminScale,
+  setThereminScale,
 }) => {
   return (
     <div className="absolute inset-0 pointer-events-none z-20 flex flex-col justify-between p-3 md:p-6">
@@ -112,6 +124,8 @@ export const HUDOverlay: React.FC<HUDOverlayProps> = ({
           <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#0D2560] to-[#050508] border border-[#00f2ff]/40 flex items-center justify-center shadow-[0_0_15px_rgba(0,242,255,0.3)]">
             {isImperialMode ? (
               <Sword className="w-5 h-5 text-rose-500 animate-pulse" />
+            ) : playMode === 'theremin' ? (
+              <RadioTower className="w-5 h-5 text-[#00f2ff] animate-pulse" />
             ) : playMode === 'air-drums' ? (
               <Disc3 className="w-5 h-5 text-amber-400 animate-spin" style={{ animationDuration: '6s' }} />
             ) : (
@@ -123,6 +137,8 @@ export const HUDOverlay: React.FC<HUDOverlayProps> = ({
               <h1 className="text-base md:text-xl font-bold tracking-wider text-slate-100 font-mono">
                 {isImperialMode ? (
                   <>IMPERIAL<span className="text-rose-500">CHORD</span> <span className="text-xs px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/40">SITH</span></>
+                ) : playMode === 'theremin' ? (
+                  <>THEREMIN<span className="text-[#00f2ff]">AR</span> <span className="text-xs px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">1920 ETHERWAVE</span></>
                 ) : playMode === 'air-drums' ? (
                   <>AIR<span className="text-amber-400">DRUMS</span> <span className="text-xs px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40">KIT</span></>
                 ) : (
@@ -135,6 +151,8 @@ export const HUDOverlay: React.FC<HUDOverlayProps> = ({
               <span>
                 {isImperialMode
                   ? 'Marcha Imperial Star Wars (Sol Menor) • Notas Listas'
+                  : playMode === 'theremin'
+                  ? 'Theremin Sin Contacto • Tono en Mano Derecha y Volumen en Mano Izquierda'
                   : playMode === 'air-drums' 
                   ? 'Batería Completa en el Aire (Baquetas Virtuales)' 
                   : 'Cuerdas Holográficas & Síntesis Karplus-Strong'}
@@ -334,8 +352,48 @@ export const HUDOverlay: React.FC<HUDOverlayProps> = ({
             </div>
           )}
 
+          {/* THEREMIN REAL-TIME STROBOSCOPIC TUNER HUD */}
+          {playMode === 'theremin' && thereminState?.isActive && (
+            <div className="glass-panel-glow px-6 py-3 rounded-2xl flex items-center space-x-5 border-cyan-500/60 shadow-[0_0_35px_rgba(0,242,255,0.4)] animate-in fade-in duration-200">
+              <div className="text-center font-mono">
+                <div className="text-3xl md:text-4xl font-black text-white tracking-wider flex items-center justify-center space-x-2">
+                  <span>{thereminState.closestNoteEs}</span>
+                  <span className="text-cyan-400 text-xl font-medium">({thereminState.closestNote})</span>
+                </div>
+                <div className="text-xs text-slate-300 flex items-center justify-center space-x-2 mt-1">
+                  <span className="text-cyan-300 font-bold">{Math.round(thereminState.frequency)} Hz</span>
+                  <span>•</span>
+                  <span className={Math.abs(thereminState.cents) < 12 ? 'text-emerald-400 font-bold' : 'text-amber-400'}>
+                    {thereminState.cents > 0 ? `+${thereminState.cents}¢` : `${thereminState.cents}¢`}
+                  </span>
+                  {Math.abs(thereminState.cents) < 10 && (
+                    <span className="text-[10px] px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                      AFINADO
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div className="border-l border-cyan-500/40 pl-4 font-mono text-xs text-slate-300 space-y-1.5">
+                <div className="flex items-center space-x-2">
+                  <span className="text-slate-400 text-[11px]">Volumen:</span>
+                  <strong className="text-amber-400">{Math.round(thereminState.volume * 100)}%</strong>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <span className="text-slate-400 text-[11px]">Pitch:</span>
+                  <div className="w-24 h-2 bg-black/60 rounded-full overflow-hidden border border-cyan-500/40">
+                    <div
+                      className="h-full bg-gradient-to-r from-cyan-400 to-[#EF3800] transition-all duration-75"
+                      style={{ width: `${thereminState.pitchRatio * 100}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* STRING PLUCK FEEDBACK */}
-          {playMode !== 'air-drums' && playMode !== 'aac-communicator' && lastPlucked && (
+          {playMode !== 'air-drums' && playMode !== 'aac-communicator' && playMode !== 'theremin' && lastPlucked && (
             <div className={`glass-panel-glow px-6 py-3 rounded-2xl flex items-center space-x-4 animate-bounce ${
               timbre === 'distortion-guitar'
                 ? 'border-[#EF3800]/70 shadow-[0_0_30px_rgba(239,56,0,0.5)] bg-black/80'
@@ -513,10 +571,54 @@ export const HUDOverlay: React.FC<HUDOverlayProps> = ({
               <Music className="w-3.5 h-3.5" />
               <span>Arpa</span>
             </button>
+
+            {/* THEREMIN AR BUTTON */}
+            <button
+              onClick={() => setPlayMode('theremin')}
+              className={`px-3 py-2 rounded-xl text-xs font-mono flex items-center space-x-1.5 transition-all cursor-pointer ${
+                playMode === 'theremin'
+                  ? 'bg-[#00f2ff] text-slate-950 font-bold shadow-[0_0_20px_rgba(0,242,255,0.8)] border border-cyan-300 animate-pulse'
+                  : 'text-[#00f2ff] hover:text-white hover:bg-cyan-950/40 border border-cyan-500/30'
+              }`}
+              title="Theremin Clásico Sin Contacto (Léon Theremin 1920)"
+            >
+              <RadioTower className="w-3.5 h-3.5" />
+              <span>🛸 THEREMIN</span>
+            </button>
           </div>
 
-          {/* Timbre & Presets Panel (Shown only in strings modes) */}
-          {playMode !== 'air-drums' ? (
+          {/* Timbre & Presets Panel (Shown only in strings & theremin modes) */}
+          {playMode === 'theremin' ? (
+            <div className="glass-panel px-3 py-2 rounded-2xl flex items-center space-x-3 w-full md:w-auto justify-center overflow-x-auto">
+              <div className="flex items-center space-x-1.5 border-r border-slate-700/60 pr-3">
+                <RadioTower className="w-3.5 h-3.5 text-[#00f2ff]" />
+                <span className="text-[11px] text-cyan-300 font-mono">Timbre:</span>
+                <select
+                  value={thereminTimbre || 'vintage-tube'}
+                  onChange={(e) => setThereminTimbre?.(e.target.value as ThereminTimbre)}
+                  className="bg-[#050508] border border-cyan-500/30 text-xs font-mono text-cyan-300 rounded-lg px-2 py-1 outline-none cursor-pointer focus:border-[#00f2ff]"
+                >
+                  <option value="vintage-tube">📻 Vintage Tube (Moog)</option>
+                  <option value="classic-sine">✨ Classic Sine (1920)</option>
+                  <option value="cosmic-scifi">🛸 Cosmic Sci-Fi (Alien Delay)</option>
+                </select>
+              </div>
+
+              <div className="flex items-center space-x-1.5">
+                <Waves className="w-3.5 h-3.5 text-amber-400" />
+                <span className="text-[11px] text-amber-300 font-mono">Escala:</span>
+                <select
+                  value={thereminScale || 'continuous'}
+                  onChange={(e) => setThereminScale?.(e.target.value as ThereminScale)}
+                  className="bg-[#050508] border border-amber-500/30 text-xs font-mono text-amber-300 rounded-lg px-2 py-1 outline-none cursor-pointer focus:border-amber-400"
+                >
+                  <option value="continuous">〰️ Glissando Libre (Puro)</option>
+                  <option value="chromatic">🎹 Cromático (12 Semitonos)</option>
+                  <option value="pentatonic">🎶 Pentatónica Menor</option>
+                </select>
+              </div>
+            </div>
+          ) : playMode !== 'air-drums' ? (
             <div className="glass-panel px-3 py-2 rounded-2xl flex items-center space-x-2.5 w-full md:w-auto justify-center overflow-x-auto">
             <div className="flex items-center space-x-1.5 border-r border-slate-700/60 pr-2.5">
               <Sliders className="w-3.5 h-3.5 text-[#00f2ff]" />

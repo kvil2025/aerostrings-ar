@@ -38,7 +38,23 @@ export interface AeroString {
   pullDisplacement?: number;
 }
 
-export type PlayMode = 'air-drums' | 'draw-strings' | 'elastic-two-hands' | 'laser-harp' | 'aac-communicator';
+export type PlayMode = 'theremin' | 'laser-harp' | 'draw-strings' | 'elastic-two-hands' | 'aac-communicator';
+
+export type ThereminTimbre = 'classic-sine' | 'vintage-tube' | 'cosmic-scifi';
+export type ThereminScale = 'continuous' | 'chromatic' | 'pentatonic';
+
+export interface ThereminState {
+  isActive: boolean;
+  frequency: number;
+  volume: number;
+  closestNote: string;
+  closestNoteEs: string;
+  cents: number;
+  pitchRatio: number; // 0 to 1
+  volumeRatio: number; // 0 to 1
+  pitchHandPoint?: ScreenPoint | null;
+  volumeHandPoint?: ScreenPoint | null;
+}
 
 export type AACCategories = 'quick-answers' | 'vital-needs' | 'feelings' | 'actions';
 
