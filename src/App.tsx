@@ -289,6 +289,92 @@ export const App: React.FC = () => {
     setStrings(presetStrings);
   }, []);
 
+  const loadRockPreset = useCallback(() => {
+    setIsImperialMode(false);
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+
+    // Drop D Heavy Rock Strings with punchy low-end and soaring sustain
+    const rockNotes = [
+      { name: 'D2 (Drop)', freq: 73.42, len: 650, color: '#EF3800' },
+      { name: 'A2 (Quinta)', freq: 110.00, len: 560, color: '#f59e0b' },
+      { name: 'D3 (Octava)', freq: 146.83, len: 480, color: '#EF3800' },
+      { name: 'G3 (Sol)', freq: 196.00, len: 400, color: '#00f2ff' },
+      { name: 'B3 (Si)', freq: 246.94, len: 330, color: '#f59e0b' },
+      { name: 'E4 (Mi)', freq: 329.63, len: 260, color: '#EF3800' },
+    ];
+
+    const startX = w * 0.18;
+    const spacing = (w * 0.64) / (rockNotes.length - 1);
+
+    const presetStrings: AeroString[] = rockNotes.map((item, idx) => {
+      const x = startX + idx * spacing;
+      const topY = h * 0.18 + (h * 0.62 - item.len) / 2;
+      return {
+        id: `rock-${idx}`,
+        start: { x, y: topY },
+        end: { x, y: topY + item.len },
+        length: item.len,
+        frequency: item.freq,
+        noteName: item.name,
+        color: item.color,
+        createdAt: Date.now(),
+        lastPluckedTime: 0,
+        vibrationAmplitude: 0,
+        vibrationPhase: 0,
+      };
+    });
+
+    setStrings(presetStrings);
+    setPlayMode('laser-harp');
+    setTimbre('distortion-guitar');
+    soundManager.setTimbre('distortion-guitar');
+    soundManager.testChord();
+  }, []);
+
+  const loadFuzzPreset = useCallback(() => {
+    setIsImperialMode(false);
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+
+    // Heavy Fuzz Riff tuning (Grunge / Stoner Rock Pentatonic)
+    const fuzzNotes = [
+      { name: 'E2 (Grave)', freq: 82.41, len: 640, color: '#f59e0b' },
+      { name: 'G2 (Tercera)', freq: 98.00, len: 570, color: '#00f2ff' },
+      { name: 'A2 (Cuarta)', freq: 110.00, len: 510, color: '#EF3800' },
+      { name: 'C3 (Sexta)', freq: 130.81, len: 440, color: '#f59e0b' },
+      { name: 'D3 (Séptima)', freq: 146.83, len: 380, color: '#00f2ff' },
+      { name: 'E3 (Tónica)', freq: 164.81, len: 310, color: '#EF3800' },
+    ];
+
+    const startX = w * 0.18;
+    const spacing = (w * 0.64) / (fuzzNotes.length - 1);
+
+    const presetStrings: AeroString[] = fuzzNotes.map((item, idx) => {
+      const x = startX + idx * spacing;
+      const topY = h * 0.18 + (h * 0.62 - item.len) / 2;
+      return {
+        id: `fuzz-${idx}`,
+        start: { x, y: topY },
+        end: { x, y: topY + item.len },
+        length: item.len,
+        frequency: item.freq,
+        noteName: item.name,
+        color: item.color,
+        createdAt: Date.now(),
+        lastPluckedTime: 0,
+        vibrationAmplitude: 0,
+        vibrationPhase: 0,
+      };
+    });
+
+    setStrings(presetStrings);
+    setPlayMode('laser-harp');
+    setTimbre('fuzz-guitar');
+    soundManager.setTimbre('fuzz-guitar');
+    soundManager.testChord();
+  }, []);
+
   const loadImperialMarchPreset = useCallback(() => {
     const w = window.innerWidth;
     const h = window.innerHeight;
@@ -380,6 +466,8 @@ export const App: React.FC = () => {
         onClearStrings={clearStrings}
         onLoadHarpPreset={loadHarpPreset}
         onLoadGuitarPreset={loadGuitarPreset}
+        onLoadRockPreset={loadRockPreset}
+        onLoadFuzzPreset={loadFuzzPreset}
         onLoadImperialMarchPreset={loadImperialMarchPreset}
         isImperialMode={isImperialMode}
         isMuted={isMuted}

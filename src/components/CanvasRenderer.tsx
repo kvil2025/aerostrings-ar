@@ -314,7 +314,7 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
               str.lastPluckedTime = now;
               soundManager.pluckString(str.frequency, 0.95);
               onPluck({ note: str.noteName, freq: str.frequency, length: str.length });
-              spawnSparks((str.start.x + str.end.x) / 2, (str.start.y + str.end.y) / 2, '#f59e0b', 24);
+              spawnSparks((str.start.x + str.end.x) / 2, (str.start.y + str.end.y) / 2, str.color || '#f59e0b', 24);
             }
           } else {
             if (prevPull && prevPull.distance > 8) {
@@ -323,7 +323,7 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
                 str.lastPluckedTime = now;
                 soundManager.pluckString(str.frequency, 0.9);
                 onPluck({ note: str.noteName, freq: str.frequency, length: str.length });
-                spawnSparks(prevPull.pullPoint.x, prevPull.pullPoint.y, '#00f2ff', 20);
+                spawnSparks(prevPull.pullPoint.x, prevPull.pullPoint.y, str.color || '#00f2ff', 24);
               }
             }
           }

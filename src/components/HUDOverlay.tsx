@@ -15,7 +15,8 @@ import {
   Camera,
   Sun,
   Disc3,
-  Sword
+  Sword,
+  Flame
 } from 'lucide-react';
 import { soundManager } from '../audio/AudioEngine';
 
@@ -28,6 +29,8 @@ interface HUDOverlayProps {
   onClearStrings: () => void;
   onLoadHarpPreset: () => void;
   onLoadGuitarPreset: () => void;
+  onLoadRockPreset?: () => void;
+  onLoadFuzzPreset?: () => void;
   onLoadImperialMarchPreset: () => void;
   isImperialMode: boolean;
   isMuted: boolean;
@@ -57,6 +60,8 @@ export const HUDOverlay: React.FC<HUDOverlayProps> = ({
   onClearStrings,
   onLoadHarpPreset,
   onLoadGuitarPreset,
+  onLoadRockPreset,
+  onLoadFuzzPreset,
   onLoadImperialMarchPreset,
   isImperialMode,
   isMuted,
@@ -245,12 +250,42 @@ export const HUDOverlay: React.FC<HUDOverlayProps> = ({
 
           {/* STRING PLUCK FEEDBACK */}
           {playMode !== 'air-drums' && lastPlucked && (
-            <div className="glass-panel-glow px-6 py-3 rounded-2xl flex items-center space-x-4 animate-bounce">
-              <div className="text-3xl font-black text-[#00f2ff] font-mono tracking-wider">
+            <div className={`glass-panel-glow px-6 py-3 rounded-2xl flex items-center space-x-4 animate-bounce ${
+              timbre === 'distortion-guitar'
+                ? 'border-[#EF3800]/70 shadow-[0_0_30px_rgba(239,56,0,0.5)] bg-black/80'
+                : timbre === 'fuzz-guitar'
+                ? 'border-amber-400/70 shadow-[0_0_30px_rgba(245,158,11,0.5)] bg-black/80'
+                : ''
+            }`}>
+              <div
+                className="text-3xl font-black font-mono tracking-wider"
+                style={{
+                  color:
+                    timbre === 'distortion-guitar'
+                      ? '#EF3800'
+                      : timbre === 'fuzz-guitar'
+                      ? '#f59e0b'
+                      : '#00f2ff',
+                }}
+              >
                 {lastPlucked.note}
               </div>
               <div className="text-left font-mono text-xs text-slate-300 border-l border-cyan-500/30 pl-3">
-                <div>Frecuencia: <span className="text-emerald-400 font-bold">{Math.round(lastPlucked.freq)} Hz</span></div>
+                <div className="flex items-center space-x-1.5">
+                  {timbre === 'distortion-guitar' && (
+                    <span className="px-1.5 py-0.5 rounded text-[10px] bg-[#EF3800]/30 text-[#EF3800] font-bold border border-[#EF3800]/40 flex items-center space-x-1">
+                      <Flame className="w-3 h-3" />
+                      <span>DISTORSIÓN</span>
+                    </span>
+                  )}
+                  {timbre === 'fuzz-guitar' && (
+                    <span className="px-1.5 py-0.5 rounded text-[10px] bg-amber-500/30 text-amber-300 font-bold border border-amber-500/40 flex items-center space-x-1">
+                      <Zap className="w-3 h-3" />
+                      <span>FUZZ</span>
+                    </span>
+                  )}
+                  <div>Frecuencia: <span className="text-emerald-400 font-bold">{Math.round(lastPlucked.freq)} Hz</span></div>
+                </div>
                 <div>Longitud de cuerda: <span className="text-amber-400 font-bold">{Math.round(lastPlucked.length)} px</span></div>
               </div>
             </div>
@@ -269,54 +304,86 @@ export const HUDOverlay: React.FC<HUDOverlayProps> = ({
       <footer className="w-full flex flex-col md:flex-row items-center justify-between gap-3 pointer-events-auto">
         {/* Mode Selector */}
         <div className="glass-panel p-1.5 rounded-2xl flex items-center space-x-1 w-full md:w-auto justify-center overflow-x-auto">
+          {/* ROCK DISTORTION PRESET BUTTON */}
+          {onLoadRockPreset && (
+            <button
+              onClick={onLoadRockPreset}
+              className={`px-3 py-2 rounded-xl text-xs font-mono flex items-center space-x-1.5 transition-all ${
+                timbre === 'distortion-guitar'
+                  ? 'bg-[#EF3800] text-white font-bold shadow-[0_0_20px_rgba(239,56,0,0.8)] border border-orange-400 animate-pulse'
+                  : 'text-[#EF3800] hover:text-white hover:bg-orange-950/40 border border-[#EF3800]/30'
+              }`}
+              title="Guitarra Heavy Rock con Distorsión (Drop D)"
+            >
+              <Flame className="w-4 h-4 text-[#EF3800]" />
+              <span>🎸 DISTORSIÓN</span>
+            </button>
+          )}
+
+          {/* FUZZ HEAVY PRESET BUTTON */}
+          {onLoadFuzzPreset && (
+            <button
+              onClick={onLoadFuzzPreset}
+              className={`px-3 py-2 rounded-xl text-xs font-mono flex items-center space-x-1.5 transition-all ${
+                timbre === 'fuzz-guitar'
+                  ? 'bg-amber-500 text-slate-950 font-bold shadow-[0_0_20px_rgba(245,158,11,0.8)] border border-amber-300 animate-pulse'
+                  : 'text-amber-400 hover:text-white hover:bg-amber-950/40 border border-amber-500/30'
+              }`}
+              title="Guitarra Fuzz Pesado Vintage (Big Muff)"
+            >
+              <Zap className="w-4 h-4 text-amber-400" />
+              <span>⚡ FUZZ</span>
+            </button>
+          )}
+
           {/* STAR WARS PRESET BUTTON */}
           <button
             onClick={onLoadImperialMarchPreset}
-            className={`px-3.5 py-2 rounded-xl text-xs font-mono flex items-center space-x-2 transition-all ${
+            className={`px-3 py-2 rounded-xl text-xs font-mono flex items-center space-x-1.5 transition-all ${
               isImperialMode
                 ? 'bg-rose-600 text-white font-bold shadow-[0_0_20px_rgba(225,29,72,0.8)] border border-rose-400 animate-pulse'
                 : 'text-rose-400 hover:text-white hover:bg-rose-950/40 border border-rose-500/30'
             }`}
           >
-            <Sword className="w-4 h-4" />
-            <span>⚔️ MARCHA IMPERIAL</span>
+            <Sword className="w-3.5 h-3.5" />
+            <span>⚔️ MARCHA</span>
           </button>
 
           {/* AIR DRUMS BUTTON */}
           <button
             onClick={() => setPlayMode('air-drums')}
-            className={`px-3 py-2 rounded-xl text-xs font-mono flex items-center space-x-2 transition-all ${
+            className={`px-3 py-2 rounded-xl text-xs font-mono flex items-center space-x-1.5 transition-all ${
               playMode === 'air-drums' && !isImperialMode
                 ? 'bg-amber-400 text-slate-950 font-bold shadow-[0_0_20px_rgba(245,158,11,0.6)] animate-pulse'
                 : 'text-amber-300 hover:text-white hover:bg-white/5'
             }`}
           >
-            <Disc3 className="w-4 h-4" />
+            <Disc3 className="w-3.5 h-3.5" />
             <span>🥁 Batería</span>
           </button>
 
           <button
             onClick={() => setPlayMode('draw-strings')}
-            className={`px-3 py-2 rounded-xl text-xs font-mono flex items-center space-x-2 transition-all ${
+            className={`px-3 py-2 rounded-xl text-xs font-mono flex items-center space-x-1.5 transition-all ${
               playMode === 'draw-strings' && !isImperialMode
                 ? 'bg-[#00f2ff] text-slate-950 font-bold shadow-[0_0_15px_rgba(0,242,255,0.5)]'
                 : 'text-slate-300 hover:text-white hover:bg-white/5'
             }`}
           >
             <Sparkles className="w-3.5 h-3.5" />
-            <span>Dibujar Cuerda</span>
+            <span>Dibujar</span>
           </button>
 
           <button
             onClick={() => setPlayMode('elastic-two-hands')}
-            className={`px-3 py-2 rounded-xl text-xs font-mono flex items-center space-x-2 transition-all ${
+            className={`px-3 py-2 rounded-xl text-xs font-mono flex items-center space-x-1.5 transition-all ${
               playMode === 'elastic-two-hands' && !isImperialMode
                 ? 'bg-[#00f2ff] text-slate-950 font-bold shadow-[0_0_15px_rgba(0,242,255,0.5)]'
                 : 'text-slate-300 hover:text-white hover:bg-white/5'
             }`}
           >
             <Zap className="w-3.5 h-3.5" />
-            <span>Cuerda 2-Manos</span>
+            <span>2-Manos</span>
           </button>
 
           <button
@@ -324,46 +391,68 @@ export const HUDOverlay: React.FC<HUDOverlayProps> = ({
               setPlayMode('laser-harp');
               onLoadHarpPreset();
             }}
-            className={`px-3 py-2 rounded-xl text-xs font-mono flex items-center space-x-2 transition-all ${
+            className={`px-3 py-2 rounded-xl text-xs font-mono flex items-center space-x-1.5 transition-all ${
               playMode === 'laser-harp' && !isImperialMode
                 ? 'bg-[#00f2ff] text-slate-950 font-bold shadow-[0_0_15px_rgba(0,242,255,0.5)]'
                 : 'text-slate-300 hover:text-white hover:bg-white/5'
             }`}
           >
             <Music className="w-3.5 h-3.5" />
-            <span>Arpa Láser</span>
+            <span>Arpa</span>
           </button>
         </div>
 
         {/* Timbre & Presets Panel (Shown only in strings modes) */}
         {playMode !== 'air-drums' ? (
-          <div className="glass-panel px-3 py-2 rounded-2xl flex items-center space-x-3 w-full md:w-auto justify-center overflow-x-auto">
-            <div className="flex items-center space-x-1.5 border-r border-slate-700/60 pr-3">
+          <div className="glass-panel px-3 py-2 rounded-2xl flex items-center space-x-2.5 w-full md:w-auto justify-center overflow-x-auto">
+            <div className="flex items-center space-x-1.5 border-r border-slate-700/60 pr-2.5">
               <Sliders className="w-3.5 h-3.5 text-[#00f2ff]" />
               <select
                 value={timbre}
                 onChange={(e) => setTimbre(e.target.value as InstrumentTimbre)}
                 className="bg-[#050508] border border-cyan-500/30 text-xs font-mono text-cyan-300 rounded-lg px-2 py-1 outline-none cursor-pointer focus:border-[#00f2ff]"
               >
-                <option value="electric-lead">Sintetizador Eléctrico (Sith)</option>
+                <option value="distortion-guitar">🎸 Guitarra con Distorsión (High-Gain)</option>
+                <option value="fuzz-guitar">⚡ Guitarra con Fuzz (Big Muff)</option>
                 <option value="acoustic-guitar">Guitarra Acústica (Karplus)</option>
+                <option value="electric-lead">Sintetizador Eléctrico (Sith)</option>
                 <option value="crystal-harp">Arpa de Cristal</option>
                 <option value="deep-bass">Bajo Profundo (Imperial)</option>
               </select>
             </div>
 
             <div className="flex items-center space-x-1.5">
+              {onLoadRockPreset && (
+                <button
+                  onClick={onLoadRockPreset}
+                  className="px-2 py-1 text-xs font-mono rounded-lg bg-[#EF3800]/25 hover:bg-[#EF3800]/40 border border-[#EF3800]/40 text-orange-200 flex items-center space-x-1 transition-all"
+                  title="Cargar 6 cuerdas Drop D con Distorsión"
+                >
+                  <Flame className="w-3 h-3 text-[#EF3800]" />
+                  <span>Rock</span>
+                </button>
+              )}
+              {onLoadFuzzPreset && (
+                <button
+                  onClick={onLoadFuzzPreset}
+                  className="px-2 py-1 text-xs font-mono rounded-lg bg-amber-500/25 hover:bg-amber-500/40 border border-amber-500/40 text-amber-200 flex items-center space-x-1 transition-all"
+                  title="Cargar afinación Fuzz Pesado"
+                >
+                  <Zap className="w-3 h-3 text-amber-400" />
+                  <span>Fuzz</span>
+                </button>
+              )}
               <button
                 onClick={onLoadGuitarPreset}
-                className="px-2.5 py-1 text-xs font-mono rounded-lg bg-[#0D2560]/50 hover:bg-[#0D2560] border border-cyan-500/30 text-cyan-200 flex items-center space-x-1 transition-all"
+                className="px-2 py-1 text-xs font-mono rounded-lg bg-[#0D2560]/50 hover:bg-[#0D2560] border border-cyan-500/30 text-cyan-200 flex items-center space-x-1 transition-all"
                 title="Cargar 6 cuerdas de afinación de guitarra (E-A-D-G-B-E)"
               >
                 <Layers className="w-3 h-3 text-[#00f2ff]" />
-                <span>Guitarra</span>
+                <span>Limpia</span>
               </button>
               <button
                 onClick={onLoadHarpPreset}
-                className="px-2.5 py-1 text-xs font-mono rounded-lg bg-[#0D2560]/50 hover:bg-[#0D2560] border border-cyan-500/30 text-cyan-200 flex items-center space-x-1 transition-all"
+                className="px-2 py-1 text-xs font-mono rounded-lg bg-[#0D2560]/50 hover:bg-[#0D2560] border border-cyan-500/30 text-cyan-200 flex items-center space-x-1 transition-all"
                 title="Cargar Arpa Pentatónica"
               >
                 <Music className="w-3 h-3 text-[#00f2ff]" />
@@ -371,7 +460,7 @@ export const HUDOverlay: React.FC<HUDOverlayProps> = ({
               </button>
               <button
                 onClick={onClearStrings}
-                className="px-2.5 py-1 text-xs font-mono rounded-lg bg-rose-950/40 hover:bg-rose-900/60 border border-rose-500/30 text-rose-300 flex items-center space-x-1 transition-all"
+                className="px-2 py-1 text-xs font-mono rounded-lg bg-rose-950/40 hover:bg-rose-900/60 border border-rose-500/30 text-rose-300 flex items-center space-x-1 transition-all"
                 title="Limpiar todas las cuerdas"
               >
                 <RotateCcw className="w-3 h-3 text-rose-400" />

@@ -40,7 +40,13 @@ export interface AeroString {
 
 export type PlayMode = 'air-drums' | 'draw-strings' | 'elastic-two-hands' | 'laser-harp';
 
-export type InstrumentTimbre = 'acoustic-guitar' | 'electric-lead' | 'crystal-harp' | 'deep-bass';
+export type InstrumentTimbre = 
+  | 'distortion-guitar'
+  | 'fuzz-guitar'
+  | 'acoustic-guitar' 
+  | 'electric-lead' 
+  | 'crystal-harp' 
+  | 'deep-bass';
 
 export type DrumType = 
   | 'kick' 
