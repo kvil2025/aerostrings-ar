@@ -43,6 +43,7 @@ export const App: React.FC = () => {
   const [fps, setFps] = useState(60);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [simulationMode, setSimulationMode] = useState(false);
+  const [isImperialMode, setIsImperialMode] = useState(false);
   const [audioState, setAudioState] = useState<AudioContextState>('suspended');
 
   useEffect(() => {
@@ -214,6 +215,7 @@ export const App: React.FC = () => {
   }, []);
 
   const loadHarpPreset = useCallback(() => {
+    setIsImperialMode(false);
     const w = window.innerWidth;
     const h = window.innerHeight;
     const notes = [
@@ -251,6 +253,7 @@ export const App: React.FC = () => {
   }, []);
 
   const loadGuitarPreset = useCallback(() => {
+    setIsImperialMode(false);
     const w = window.innerWidth;
     const h = window.innerHeight;
     const guitarNotes = [
@@ -286,9 +289,59 @@ export const App: React.FC = () => {
     setStrings(presetStrings);
   }, []);
 
+  const loadImperialMarchPreset = useCallback(() => {
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+
+    // Imperial March core notes (Sol menor / G minor):
+    // 1: G3 (Sol 3) - 196.00 Hz
+    // 2: Eb3 (Mi♭ 3) - 155.56 Hz
+    // 3: Bb3 (Si♭ 3) - 233.08 Hz
+    // 4: D4 (Re 4) - 293.66 Hz
+    // 5: Eb4 (Mi♭ 4) - 311.13 Hz
+    // 6: F#3 (Fa# 3) - 184.99 Hz
+    const imperialNotes = [
+      { name: 'Sol (G3)', freq: 196.00, len: 540, color: '#EF3800' },
+      { name: 'Mib (Eb3)', freq: 155.56, len: 640, color: '#00f2ff' },
+      { name: 'Sib (Bb3)', freq: 233.08, len: 460, color: '#f59e0b' },
+      { name: 'Re (D4)', freq: 293.66, len: 370, color: '#00f2ff' },
+      { name: 'Mib4 (Eb4)', freq: 311.13, len: 320, color: '#f59e0b' },
+      { name: 'Fa# (F#3)', freq: 184.99, len: 580, color: '#EF3800' },
+    ];
+
+    const startX = w * 0.18;
+    const spacing = (w * 0.64) / (imperialNotes.length - 1);
+
+    const presetStrings: AeroString[] = imperialNotes.map((item, idx) => {
+      const x = startX + idx * spacing;
+      const topY = h * 0.18 + (h * 0.62 - item.len) / 2;
+      return {
+        id: `imperial-${idx}`,
+        start: { x, y: topY },
+        end: { x, y: topY + item.len },
+        length: item.len,
+        frequency: item.freq,
+        noteName: item.name,
+        color: item.color,
+        createdAt: Date.now(),
+        lastPluckedTime: 0,
+        vibrationAmplitude: 0,
+        vibrationPhase: 0,
+      };
+    });
+
+    setStrings(presetStrings);
+    setPlayMode('laser-harp');
+    setIsImperialMode(true);
+    setTimbre('electric-lead');
+    soundManager.setTimbre('electric-lead');
+    soundManager.pluckString(196.00, 0.9);
+  }, []);
+
   const clearStrings = useCallback(() => {
     setStrings([]);
     setLastPlucked(null);
+    setIsImperialMode(false);
   }, []);
 
   return (
@@ -327,6 +380,8 @@ export const App: React.FC = () => {
         onClearStrings={clearStrings}
         onLoadHarpPreset={loadHarpPreset}
         onLoadGuitarPreset={loadGuitarPreset}
+        onLoadImperialMarchPreset={loadImperialMarchPreset}
+        isImperialMode={isImperialMode}
         isMuted={isMuted}
         setIsMuted={setIsMuted}
         lastPlucked={lastPlucked}

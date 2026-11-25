@@ -14,7 +14,8 @@ import {
   Music,
   Camera,
   Sun,
-  Disc3
+  Disc3,
+  Sword
 } from 'lucide-react';
 import { soundManager } from '../audio/AudioEngine';
 
@@ -27,6 +28,8 @@ interface HUDOverlayProps {
   onClearStrings: () => void;
   onLoadHarpPreset: () => void;
   onLoadGuitarPreset: () => void;
+  onLoadImperialMarchPreset: () => void;
+  isImperialMode: boolean;
   isMuted: boolean;
   setIsMuted: (muted: boolean) => void;
   lastPlucked: { note: string; freq: number; length: number } | null;
@@ -54,6 +57,8 @@ export const HUDOverlay: React.FC<HUDOverlayProps> = ({
   onClearStrings,
   onLoadHarpPreset,
   onLoadGuitarPreset,
+  onLoadImperialMarchPreset,
+  isImperialMode,
   isMuted,
   setIsMuted,
   lastPlucked,
@@ -77,7 +82,9 @@ export const HUDOverlay: React.FC<HUDOverlayProps> = ({
       <header className="flex flex-wrap items-center justify-between w-full pointer-events-auto gap-3">
         <div className="flex items-center space-x-3">
           <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#0D2560] to-[#050508] border border-[#00f2ff]/40 flex items-center justify-center shadow-[0_0_15px_rgba(0,242,255,0.3)]">
-            {playMode === 'air-drums' ? (
+            {isImperialMode ? (
+              <Sword className="w-5 h-5 text-rose-500 animate-pulse" />
+            ) : playMode === 'air-drums' ? (
               <Disc3 className="w-5 h-5 text-amber-400 animate-spin" style={{ animationDuration: '6s' }} />
             ) : (
               <Guitar className="w-5 h-5 text-[#00f2ff]" />
@@ -86,7 +93,9 @@ export const HUDOverlay: React.FC<HUDOverlayProps> = ({
           <div>
             <div className="flex items-center space-x-2">
               <h1 className="text-base md:text-xl font-bold tracking-wider text-slate-100 font-mono">
-                {playMode === 'air-drums' ? (
+                {isImperialMode ? (
+                  <>IMPERIAL<span className="text-rose-500">CHORD</span> <span className="text-xs px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/40">SITH</span></>
+                ) : playMode === 'air-drums' ? (
                   <>AIR<span className="text-amber-400">DRUMS</span> <span className="text-xs px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40">KIT</span></>
                 ) : (
                   <>AERO<span className="text-[#00f2ff]">STRINGS</span> <span className="text-xs px-1.5 py-0.5 rounded bg-[#EF3800]/20 text-[#EF3800] border border-[#EF3800]/40">AR</span></>
@@ -96,7 +105,9 @@ export const HUDOverlay: React.FC<HUDOverlayProps> = ({
             <p className="text-xs text-slate-300 font-mono flex items-center space-x-2">
               <span className="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
               <span>
-                {playMode === 'air-drums' 
+                {isImperialMode
+                  ? 'Marcha Imperial Star Wars (Sol Menor) • Notas Listas'
+                  : playMode === 'air-drums' 
                   ? 'Batería Completa en el Aire (Baquetas Virtuales)' 
                   : 'Cuerdas Holográficas & Síntesis Karplus-Strong'}
               </span>
@@ -180,7 +191,7 @@ export const HUDOverlay: React.FC<HUDOverlayProps> = ({
         </div>
       </header>
 
-      {/* Prominent Audio Unlock Banner if Browser has muted AudioContext */}
+      {/* Prominent Audio Unlock Banner */}
       {audioState !== 'running' && (
         <div className="my-auto mx-auto pointer-events-auto">
           <button
@@ -196,9 +207,29 @@ export const HUDOverlay: React.FC<HUDOverlayProps> = ({
         </div>
       )}
 
-      {/* Center Note / Drum Hit Display */}
+      {/* Center Note / Drum Hit Display & Interactive Tablatura */}
       {audioState === 'running' && (
         <div className="flex flex-col items-center justify-center my-auto pointer-events-none">
+          {/* STAR WARS INTERACTIVE GUIDE HUD */}
+          {isImperialMode && (
+            <div className="mb-4 glass-panel-glow px-6 py-3 rounded-2xl border-rose-500/50 shadow-[0_0_30px_rgba(239,56,0,0.35)] text-center max-w-xl">
+              <div className="text-rose-400 font-bold text-sm mb-1.5 flex items-center justify-center space-x-2 font-mono">
+                <Sword className="w-4 h-4 text-rose-500" />
+                <span>PARTITURA AÉREA: MARCHA IMPERIAL (STAR WARS)</span>
+              </div>
+              <div className="text-xs font-mono space-y-1">
+                <div className="bg-rose-950/40 px-3 py-1 rounded border border-rose-500/30">
+                  <span className="text-rose-300 font-bold">1ª Frase: </span>
+                  <span className="text-white tracking-widest">[Sol] [Sol] [Sol] — [Mib] [Sib] [Sol]</span>
+                </div>
+                <div className="bg-amber-950/30 px-3 py-1 rounded border border-amber-500/30">
+                  <span className="text-amber-300 font-bold">2ª Frase: </span>
+                  <span className="text-white tracking-widest">[Re] [Re] [Re] — [Mib4] [Sib] [Fa#] • [Mib] [Sib] [Sol]</span>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* DRUM HIT FEEDBACK */}
           {playMode === 'air-drums' && lastDrumHit && (
             <div className="glass-panel-glow px-6 py-3 rounded-2xl flex items-center space-x-4 animate-bounce border-amber-500/50 shadow-[0_0_30px_rgba(245,158,11,0.3)]">
@@ -238,23 +269,36 @@ export const HUDOverlay: React.FC<HUDOverlayProps> = ({
       <footer className="w-full flex flex-col md:flex-row items-center justify-between gap-3 pointer-events-auto">
         {/* Mode Selector */}
         <div className="glass-panel p-1.5 rounded-2xl flex items-center space-x-1 w-full md:w-auto justify-center overflow-x-auto">
+          {/* STAR WARS PRESET BUTTON */}
+          <button
+            onClick={onLoadImperialMarchPreset}
+            className={`px-3.5 py-2 rounded-xl text-xs font-mono flex items-center space-x-2 transition-all ${
+              isImperialMode
+                ? 'bg-rose-600 text-white font-bold shadow-[0_0_20px_rgba(225,29,72,0.8)] border border-rose-400 animate-pulse'
+                : 'text-rose-400 hover:text-white hover:bg-rose-950/40 border border-rose-500/30'
+            }`}
+          >
+            <Sword className="w-4 h-4" />
+            <span>⚔️ MARCHA IMPERIAL</span>
+          </button>
+
           {/* AIR DRUMS BUTTON */}
           <button
             onClick={() => setPlayMode('air-drums')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-mono flex items-center space-x-2 transition-all ${
-              playMode === 'air-drums'
+            className={`px-3 py-2 rounded-xl text-xs font-mono flex items-center space-x-2 transition-all ${
+              playMode === 'air-drums' && !isImperialMode
                 ? 'bg-amber-400 text-slate-950 font-bold shadow-[0_0_20px_rgba(245,158,11,0.6)] animate-pulse'
                 : 'text-amber-300 hover:text-white hover:bg-white/5'
             }`}
           >
             <Disc3 className="w-4 h-4" />
-            <span>🥁 BATERÍA AÉREA</span>
+            <span>🥁 Batería</span>
           </button>
 
           <button
             onClick={() => setPlayMode('draw-strings')}
             className={`px-3 py-2 rounded-xl text-xs font-mono flex items-center space-x-2 transition-all ${
-              playMode === 'draw-strings'
+              playMode === 'draw-strings' && !isImperialMode
                 ? 'bg-[#00f2ff] text-slate-950 font-bold shadow-[0_0_15px_rgba(0,242,255,0.5)]'
                 : 'text-slate-300 hover:text-white hover:bg-white/5'
             }`}
@@ -266,7 +310,7 @@ export const HUDOverlay: React.FC<HUDOverlayProps> = ({
           <button
             onClick={() => setPlayMode('elastic-two-hands')}
             className={`px-3 py-2 rounded-xl text-xs font-mono flex items-center space-x-2 transition-all ${
-              playMode === 'elastic-two-hands'
+              playMode === 'elastic-two-hands' && !isImperialMode
                 ? 'bg-[#00f2ff] text-slate-950 font-bold shadow-[0_0_15px_rgba(0,242,255,0.5)]'
                 : 'text-slate-300 hover:text-white hover:bg-white/5'
             }`}
@@ -281,7 +325,7 @@ export const HUDOverlay: React.FC<HUDOverlayProps> = ({
               onLoadHarpPreset();
             }}
             className={`px-3 py-2 rounded-xl text-xs font-mono flex items-center space-x-2 transition-all ${
-              playMode === 'laser-harp'
+              playMode === 'laser-harp' && !isImperialMode
                 ? 'bg-[#00f2ff] text-slate-950 font-bold shadow-[0_0_15px_rgba(0,242,255,0.5)]'
                 : 'text-slate-300 hover:text-white hover:bg-white/5'
             }`}
@@ -301,10 +345,10 @@ export const HUDOverlay: React.FC<HUDOverlayProps> = ({
                 onChange={(e) => setTimbre(e.target.value as InstrumentTimbre)}
                 className="bg-[#050508] border border-cyan-500/30 text-xs font-mono text-cyan-300 rounded-lg px-2 py-1 outline-none cursor-pointer focus:border-[#00f2ff]"
               >
+                <option value="electric-lead">Sintetizador Eléctrico (Sith)</option>
                 <option value="acoustic-guitar">Guitarra Acústica (Karplus)</option>
-                <option value="electric-lead">Sintetizador Eléctrico</option>
                 <option value="crystal-harp">Arpa de Cristal</option>
-                <option value="deep-bass">Bajo Profundo</option>
+                <option value="deep-bass">Bajo Profundo (Imperial)</option>
               </select>
             </div>
 
@@ -315,7 +359,7 @@ export const HUDOverlay: React.FC<HUDOverlayProps> = ({
                 title="Cargar 6 cuerdas de afinación de guitarra (E-A-D-G-B-E)"
               >
                 <Layers className="w-3 h-3 text-[#00f2ff]" />
-                <span>Guitarra ({stringsCount})</span>
+                <span>Guitarra</span>
               </button>
               <button
                 onClick={onLoadHarpPreset}
@@ -323,7 +367,7 @@ export const HUDOverlay: React.FC<HUDOverlayProps> = ({
                 title="Cargar Arpa Pentatónica"
               >
                 <Music className="w-3 h-3 text-[#00f2ff]" />
-                <span>Arpa (7)</span>
+                <span>Arpa</span>
               </button>
               <button
                 onClick={onClearStrings}
@@ -336,7 +380,6 @@ export const HUDOverlay: React.FC<HUDOverlayProps> = ({
             </div>
           </div>
         ) : (
-          /* Drum Kit Quick Tips */
           <div className="glass-panel px-4 py-2 rounded-2xl flex items-center space-x-2 text-xs font-mono text-amber-200/90">
             <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
             <span>Mueve tus manos como baquetas o presiona las teclas [K, S, H, C, R, T, F]</span>
