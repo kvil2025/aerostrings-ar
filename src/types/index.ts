@@ -24,6 +24,7 @@ export interface AeroString {
   id: string;
   start: ScreenPoint;
   end: ScreenPoint;
+  pathPoints?: ScreenPoint[];
   length: number; // in pixels
   frequency: number; // in Hz
   noteName: string;
@@ -32,6 +33,9 @@ export interface AeroString {
   lastPluckedTime: number;
   vibrationAmplitude: number; // 0 to 1 decay
   vibrationPhase: number;
+  // Dynamic physical string bending when touched
+  pullPoint?: ScreenPoint | null;
+  pullDisplacement?: number;
 }
 
 export type PlayMode = 'draw-strings' | 'elastic-two-hands' | 'laser-harp';

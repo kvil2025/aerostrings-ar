@@ -13,6 +13,10 @@ export const App: React.FC = () => {
   const [loadingMsg, setLoadingMsg] = useState('Iniciando sistema de visión computacional...');
   const [cameraError, setCameraError] = useState<string | null>(null);
 
+  const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([]);
+  const [selectedDeviceId, setSelectedDeviceId] = useState<string>('');
+  const [videoDimming, setVideoDimming] = useState<number>(0.12); // Default crystal clear camera view
+
   const [hands, setHands] = useState<HandData[]>([]);
   const [strings, setStrings] = useState<AeroString[]>([]);
   const [playMode, setPlayMode] = useState<PlayMode>('draw-strings');
@@ -26,56 +30,80 @@ export const App: React.FC = () => {
   // FPS calculation refs
   const frameCountRef = useRef(0);
   const lastFpsUpdateRef = useRef(performance.now());
+  const streamRef = useRef<MediaStream | null>(null);
 
-  // 1. Initialize Camera and MediaPipe
+  // 1. Start Camera with specified deviceId
+  const startCamera = useCallback(async (deviceId?: string) => {
+    try {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+      }
+
+      const constraints: MediaStreamConstraints = {
+        video: deviceId
+          ? { deviceId: { exact: deviceId }, width: { ideal: 1280 }, height: { ideal: 720 } }
+          : { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' },
+        audio: false,
+      };
+
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      streamRef.current = stream;
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+      }
+
+      // Enumerate cameras
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const videoInputs = devices.filter((d) => d.kind === 'videoinput');
+      setVideoDevices(videoInputs);
+
+      if (!deviceId && videoInputs.length > 0) {
+        setSelectedDeviceId(videoInputs[0].deviceId);
+      }
+
+      setCameraError(null);
+    } catch (err: unknown) {
+      console.error('Camera access error:', err);
+      setCameraError(
+        err instanceof Error
+          ? `Acceso a la cámara denegado: ${err.message}`
+          : 'No se pudo acceder a la cámara web. Asegúrate de otorgar permisos.'
+      );
+    }
+  }, []);
+
+  // 2. Initialize App
   useEffect(() => {
-    let activeStream: MediaStream | null = null;
-
     const setupApp = async () => {
-      try {
-        // Request Webcam Stream
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-            facingMode: 'user',
-          },
-          audio: false,
-        });
+      await startCamera();
 
-        activeStream = stream;
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          await videoRef.current.play();
-        }
-
-        // Initialize MediaPipe Hand Tracker
-        const ready = await handTracker.initialize((msg) => setLoadingMsg(msg));
-        if (ready) {
-          setIsVisionReady(true);
-        } else {
-          setCameraError('No se pudo cargar el modelo neuronal de detección de manos.');
-        }
-      } catch (err: unknown) {
-        console.error('Camera access error:', err);
-        setCameraError(
-          err instanceof Error
-            ? `Acceso a la cámara denegado: ${err.message}`
-            : 'No se pudo acceder a la cámara web. Asegúrate de otorgar permisos.'
-        );
+      // Initialize MediaPipe Hand Tracker
+      const ready = await handTracker.initialize((msg) => setLoadingMsg(msg));
+      if (ready) {
+        setIsVisionReady(true);
+      } else {
+        setCameraError('No se pudo cargar el modelo neuronal de detección de manos.');
       }
     };
 
     setupApp();
 
     return () => {
-      if (activeStream) {
-        activeStream.getTracks().forEach((track) => track.stop());
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
       }
     };
-  }, []);
+  }, [startCamera]);
 
-  // 2. Detection Loop (Runs every animation frame)
+  // Handle camera switch
+  const handleSelectDevice = async (deviceId: string) => {
+    setSelectedDeviceId(deviceId);
+    await startCamera(deviceId);
+  };
+
+  // 3. Detection Loop (Runs every animation frame)
   useEffect(() => {
     let animId: number;
 
@@ -105,7 +133,7 @@ export const App: React.FC = () => {
     return () => cancelAnimationFrame(animId);
   }, [isVisionReady]);
 
-  // 3. Audio Engine Sync
+  // 4. Audio Engine Sync
   useEffect(() => {
     soundManager.setTimbre(timbre);
   }, [timbre]);
@@ -194,7 +222,6 @@ export const App: React.FC = () => {
     setStrings(presetStrings);
   }, []);
 
-  // Clear all strings
   const clearStrings = useCallback(() => {
     setStrings([]);
     setLastPlucked(null);
@@ -203,7 +230,7 @@ export const App: React.FC = () => {
   return (
     <main
       className="relative w-screen h-screen overflow-hidden bg-[#050508] text-slate-100 cyber-grid"
-      onClick={() => soundManager.init()} // Unmute browser audio context on first interaction
+      onClick={() => soundManager.init()}
     >
       {/* Hidden processing video */}
       <video
@@ -220,6 +247,7 @@ export const App: React.FC = () => {
         hands={hands}
         strings={strings}
         playMode={playMode}
+        videoDimming={videoDimming}
         onAddString={(newStr) => setStrings((prev) => [...prev, newStr])}
         onUpdateStrings={setStrings}
         onPluck={handlePluck}
@@ -244,6 +272,11 @@ export const App: React.FC = () => {
         handsDetectedCount={hands.length}
         fps={fps}
         onOpenHelp={() => setIsHelpOpen(true)}
+        videoDimming={videoDimming}
+        setVideoDimming={setVideoDimming}
+        videoDevices={videoDevices}
+        selectedDeviceId={selectedDeviceId}
+        onSelectDevice={handleSelectDevice}
       />
 
       {/* Loading Screen Overlay */}
