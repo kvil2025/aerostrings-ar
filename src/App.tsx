@@ -37,6 +37,8 @@ export const App: React.FC = () => {
   const [isMuted, setIsMuted] = useState(false);
   const [lastPlucked, setLastPlucked] = useState<{ note: string; freq: number; length: number } | null>(null);
   const [lastDrumHit, setLastDrumHit] = useState<{ name: string; velocity: number } | null>(null);
+  const [currentBpm, setCurrentBpm] = useState<number | null>(null);
+  const lastHitTimeRef = useRef<number>(0);
   const [hoverInfo, setHoverInfo] = useState<string | null>(null);
   const [fps, setFps] = useState(60);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
@@ -199,6 +201,15 @@ export const App: React.FC = () => {
   }, []);
 
   const handleDrumHit = useCallback((pad: DrumPad, velocity: number) => {
+    const now = performance.now();
+    if (lastHitTimeRef.current > 0) {
+      const deltaMs = now - lastHitTimeRef.current;
+      if (deltaMs > 160 && deltaMs < 2000) {
+        const instantBpm = Math.round(60000 / deltaMs);
+        setCurrentBpm(instantBpm);
+      }
+    }
+    lastHitTimeRef.current = now;
     setLastDrumHit({ name: pad.name, velocity });
   }, []);
 
@@ -320,6 +331,7 @@ export const App: React.FC = () => {
         setIsMuted={setIsMuted}
         lastPlucked={lastPlucked}
         lastDrumHit={lastDrumHit}
+        currentBpm={currentBpm}
         hoverInfo={hoverInfo}
         handsDetectedCount={hands.length}
         fps={fps}

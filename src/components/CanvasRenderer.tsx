@@ -45,9 +45,10 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
   const particlesRef = useRef<Particle[]>([]);
   const shockwavesRef = useRef<Shockwave[]>([]);
 
-  // Velocity tracking for hands (to detect strike speed)
-  const previousHandTipsRef = useRef<Map<string, { point: ScreenPoint; time: number }>>(new Map());
-  const padCooldownsRef = useRef<Map<string, number>>(new Map());
+  // Velocity and physical strike tracking
+  const previousHandTipsRef = useRef<Map<string, { point: ScreenPoint; time: number; vy: number }>>(new Map());
+  // Arming state per (padId + handKey) to require real rebound/stroke per hit
+  const padArmStatesRef = useRef<Map<string, boolean>>(new Map());
 
   // Mouse fallback
   const isMouseDownRef = useRef(false);
@@ -128,28 +129,21 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
       }
 
       // Collect interaction pointers (drumstick tips or finger picks)
-      const drumsticks: { point: ScreenPoint; velocity: number; handIdx: number }[] = [];
+      const drumsticks: { point: ScreenPoint; vy: number; key: string }[] = [];
 
       hands.forEach((hand, hIdx) => {
         const key = `${hand.handedness}-${hIdx}`;
         const prev = previousHandTipsRef.current.get(key);
-        let speed = 0.8;
+        let vy = 0;
 
         if (prev) {
           const dt = Math.max(1, now - prev.time);
-          const dist = distance2D(hand.indexTip, prev.point);
-          // Downward velocity bonus (striking down)
-          const vy = (hand.indexTip.y - prev.point.y) / dt;
-          speed = Math.min(1.0, Math.max(0.4, (dist / dt) * 0.4 + (vy > 0 ? 0.3 : 0)));
+          vy = (hand.indexTip.y - prev.point.y) / dt; // positive = moving downwards
         }
 
-        previousHandTipsRef.current.set(key, { point: hand.indexTip, time: now });
-        drumsticks.push({ point: hand.indexTip, velocity: speed, handIdx: hIdx });
+        previousHandTipsRef.current.set(key, { point: hand.indexTip, time: now, vy });
+        drumsticks.push({ point: hand.indexTip, vy, key });
       });
-
-      if (isMouseDownRef.current && mousePointRef.current) {
-        drumsticks.push({ point: mousePointRef.current, velocity: 0.95, handIdx: 99 });
-      }
 
       // -------------------------------------------------------------
       // MODE: AIR DRUMS (Batería Completa en el Aire)
@@ -212,26 +206,36 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
 
           ctx.restore();
 
-          // Check Strike Colision against Drumsticks
+          // Physical Strike Check: requires active downward stroke and rebound/re-arm cycle
           drumsticks.forEach((stick) => {
             const dist = distance2D(stick.point, { x: px, y: py });
+            const armKey = `${pad.id}-${stick.key}`;
+            const isArmed = padArmStatesRef.current.get(armKey) ?? true;
 
-            if (dist < pr) {
-              const cooldown = padCooldownsRef.current.get(pad.id) || 0;
-              if (now - cooldown > 120) {
-                // STRIKE CONFIRMED!
-                padCooldownsRef.current.set(pad.id, now);
-                pad.lastHitTime = now;
-                pad.hitVelocity = stick.velocity;
+            // 1. RE-ARM conditions: Hand is outside pad OR moving upwards (rebound)
+            if (dist > pr * 1.15) {
+              padArmStatesRef.current.set(armKey, true);
+            } else if (stick.vy < -0.10) {
+              // Upward rebound re-arms the drum pad even inside the zone!
+              padArmStatesRef.current.set(armKey, true);
+            }
 
-                // Play Sound
-                drumsManager.trigger(pad.type, stick.velocity);
-                onDrumHit(pad, stick.velocity);
+            // 2. STRIKE condition: Inside pad, ARMED, and moving downwards
+            if (dist <= pr && isArmed && stick.vy > 0.15) {
+              // Disarm immediately so it won't trigger continuously
+              padArmStatesRef.current.set(armKey, false);
 
-                // Shockwave & Sparks
-                spawnShockwave(px, py, pr, pad.color);
-                spawnSparks(stick.point.x, stick.point.y, pad.color, 24);
-              }
+              // Calculate velocity from strike speed (0.35 to 1.0)
+              const hitVelocity = Math.max(0.35, Math.min(1.0, 0.45 + stick.vy * 0.7));
+
+              pad.lastHitTime = now;
+              pad.hitVelocity = hitVelocity;
+
+              drumsManager.trigger(pad.type, hitVelocity);
+              onDrumHit(pad, hitVelocity);
+
+              spawnShockwave(px, py, pr, pad.color);
+              spawnSparks(stick.point.x, stick.point.y, pad.color, 24);
             }
           });
         });
@@ -565,7 +569,30 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
 
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
     isMouseDownRef.current = true;
-    mousePointRef.current = { x: e.clientX, y: e.clientY };
+    const pt = { x: e.clientX, y: e.clientY };
+    mousePointRef.current = pt;
+
+    if (playMode === 'air-drums') {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const width = canvas.width;
+      const height = canvas.height;
+      const minDim = Math.min(width, height);
+
+      drumPads.forEach((pad) => {
+        const px = pad.relX * width;
+        const py = pad.relY * height;
+        const pr = pad.relRadius * minDim;
+        if (distance2D(pt, { x: px, y: py }) <= pr) {
+          pad.lastHitTime = performance.now();
+          pad.hitVelocity = 0.9;
+          drumsManager.trigger(pad.type, 0.9);
+          onDrumHit(pad, 0.9);
+          spawnShockwave(px, py, pr, pad.color);
+          spawnSparks(pt.x, pt.y, pad.color, 24);
+        }
+      });
+    }
   };
 
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {

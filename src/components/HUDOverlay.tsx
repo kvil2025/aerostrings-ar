@@ -31,6 +31,7 @@ interface HUDOverlayProps {
   setIsMuted: (muted: boolean) => void;
   lastPlucked: { note: string; freq: number; length: number } | null;
   lastDrumHit: { name: string; velocity: number } | null;
+  currentBpm?: number | null;
   hoverInfo: string | null;
   handsDetectedCount: number;
   fps: number;
@@ -57,6 +58,7 @@ export const HUDOverlay: React.FC<HUDOverlayProps> = ({
   setIsMuted,
   lastPlucked,
   lastDrumHit,
+  currentBpm,
   hoverInfo,
   handsDetectedCount,
   fps,
@@ -204,8 +206,8 @@ export const HUDOverlay: React.FC<HUDOverlayProps> = ({
                 🥁 {lastDrumHit.name.toUpperCase()}
               </div>
               <div className="text-left font-mono text-xs text-slate-300 border-l border-amber-500/40 pl-3">
-                <div>Fuerza de golpe: <span className="text-emerald-400 font-bold">{Math.round(lastDrumHit.velocity * 100)}%</span></div>
-                <div>Sensor: <span className="text-cyan-400 font-bold">Impacto 3D</span></div>
+                <div>Fuerza: <span className="text-emerald-400 font-bold">{Math.round(lastDrumHit.velocity * 100)}%</span></div>
+                <div>Tu Tempo: <span className="text-amber-300 font-bold">{currentBpm ? `${currentBpm} BPM` : 'Marcando...'}</span></div>
               </div>
             </div>
           )}
