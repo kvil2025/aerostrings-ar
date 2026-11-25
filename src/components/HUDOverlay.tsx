@@ -387,129 +387,137 @@ export const HUDOverlay: React.FC<HUDOverlayProps> = ({
       )}
 
       {/* Bottom Control Dock */}
-      <footer className="w-full flex flex-col md:flex-row items-center justify-between gap-3 pointer-events-auto">
-        {/* Mode Selector */}
-        <div className="glass-panel p-1.5 rounded-2xl flex items-center space-x-1 w-full md:w-auto justify-center overflow-x-auto">
-          {/* NON-VERBAL AAC COMMUNICATOR BUTTON */}
-          <button
-            onClick={() => setPlayMode('aac-communicator')}
-            className={`px-3 py-2 rounded-xl text-xs font-mono flex items-center space-x-1.5 transition-all ${
-              playMode === 'aac-communicator'
-                ? 'bg-emerald-400 text-slate-950 font-bold shadow-[0_0_20px_rgba(16,185,129,0.8)] border border-emerald-300 animate-pulse'
-                : 'text-emerald-400 hover:text-white hover:bg-emerald-950/40 border border-emerald-500/30'
-            }`}
-            title="Módulo Accesible para personas no verbales que solo pueden mover las manos"
-          >
-            <MessageSquare className="w-3.5 h-3.5 text-emerald-400" />
-            <span>🗣️ VOZ AÉREA (AAC)</span>
-          </button>
-
-          {/* ROCK DISTORTION PRESET BUTTON */}
-          {onLoadRockPreset && (
-            <button
-              onClick={onLoadRockPreset}
-              className={`px-3 py-2 rounded-xl text-xs font-mono flex items-center space-x-1.5 transition-all ${
-                timbre === 'distortion-guitar'
-                  ? 'bg-[#EF3800] text-white font-bold shadow-[0_0_20px_rgba(239,56,0,0.8)] border border-orange-400 animate-pulse'
-                  : 'text-[#EF3800] hover:text-white hover:bg-orange-950/40 border border-[#EF3800]/30'
-              }`}
-              title="Guitarra Heavy Rock con Distorsión (Drop D)"
-            >
-              <Flame className="w-4 h-4 text-[#EF3800]" />
-              <span>🎸 DISTORSIÓN</span>
-            </button>
-          )}
-
-          {/* FUZZ HEAVY PRESET BUTTON */}
-          {onLoadFuzzPreset && (
-            <button
-              onClick={onLoadFuzzPreset}
-              className={`px-3 py-2 rounded-xl text-xs font-mono flex items-center space-x-1.5 transition-all ${
-                timbre === 'fuzz-guitar'
-                  ? 'bg-amber-500 text-slate-950 font-bold shadow-[0_0_20px_rgba(245,158,11,0.8)] border border-amber-300 animate-pulse'
-                  : 'text-amber-400 hover:text-white hover:bg-amber-950/40 border border-amber-500/30'
-              }`}
-              title="Guitarra Fuzz Pesado Vintage (Big Muff)"
-            >
-              <Zap className="w-4 h-4 text-amber-400" />
-              <span>⚡ FUZZ</span>
-            </button>
-          )}
-
-          {/* STAR WARS PRESET BUTTON */}
-          <button
-            onClick={onLoadImperialMarchPreset}
-            className={`px-3 py-2 rounded-xl text-xs font-mono flex items-center space-x-1.5 transition-all ${
-              isImperialMode
-                ? 'bg-rose-600 text-white font-bold shadow-[0_0_20px_rgba(225,29,72,0.8)] border border-rose-400 animate-pulse'
-                : 'text-rose-400 hover:text-white hover:bg-rose-950/40 border border-rose-500/30'
-            }`}
-          >
-            <Sword className="w-3.5 h-3.5" />
-            <span>⚔️ MARCHA</span>
-          </button>
-
-          {/* AIR DRUMS BUTTON */}
-          <button
-            onClick={() => setPlayMode('air-drums')}
-            className={`px-3 py-2 rounded-xl text-xs font-mono flex items-center space-x-1.5 transition-all ${
-              playMode === 'air-drums' && !isImperialMode
-                ? 'bg-amber-400 text-slate-950 font-bold shadow-[0_0_20px_rgba(245,158,11,0.6)] animate-pulse'
-                : 'text-amber-300 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <Disc3 className="w-3.5 h-3.5" />
-            <span>🥁 Batería</span>
-          </button>
-
-          <button
-            onClick={() => setPlayMode('draw-strings')}
-            className={`px-3 py-2 rounded-xl text-xs font-mono flex items-center space-x-1.5 transition-all ${
-              playMode === 'draw-strings' && !isImperialMode
-                ? 'bg-[#00f2ff] text-slate-950 font-bold shadow-[0_0_15px_rgba(0,242,255,0.5)]'
-                : 'text-slate-300 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>Dibujar</span>
-          </button>
-
-          <button
-            onClick={() => setPlayMode('elastic-two-hands')}
-            className={`px-3 py-2 rounded-xl text-xs font-mono flex items-center space-x-1.5 transition-all ${
-              playMode === 'elastic-two-hands' && !isImperialMode
-                ? 'bg-[#00f2ff] text-slate-950 font-bold shadow-[0_0_15px_rgba(0,242,255,0.5)]'
-                : 'text-slate-300 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <Zap className="w-3.5 h-3.5" />
-            <span>2-Manos</span>
-          </button>
-
-          <button
-            onClick={() => {
-              setPlayMode('laser-harp');
-              onLoadHarpPreset();
-            }}
-            className={`px-3 py-2 rounded-xl text-xs font-mono flex items-center space-x-1.5 transition-all ${
-              playMode === 'laser-harp' && !isImperialMode
-                ? 'bg-[#00f2ff] text-slate-950 font-bold shadow-[0_0_15px_rgba(0,242,255,0.5)]'
-                : 'text-slate-300 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <Music className="w-3.5 h-3.5" />
-            <span>Arpa</span>
-          </button>
-        </div>
-
-        {/* Timbre & Presets Panel (Shown only in strings modes) */}
-        {playMode === 'aac-communicator' ? (
-          <div className="glass-panel px-4 py-2 rounded-2xl flex items-center space-x-2 text-xs font-mono text-emerald-300">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
-            <span>Apunta con el dedo 0.6s sobre cualquier tarjeta para hablar en voz alta</span>
+      {playMode === 'aac-communicator' ? (
+        <footer className="w-full flex items-center justify-between gap-3 pointer-events-auto z-40 px-2 sm:px-6">
+          <div className="glass-panel px-4 py-2 rounded-xl flex items-center space-x-2.5 text-xs font-mono text-emerald-300 border border-emerald-500/40 shadow-[0_0_15px_rgba(16,185,129,0.25)]">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span className="font-bold text-white tracking-wide">MODO VOZ AÉREA (AAC) ACTIVO</span>
+            <span className="text-slate-400 hidden md:inline">| Apunta con tu dedo a tarjetas o categorías</span>
           </div>
-        ) : playMode !== 'air-drums' ? (
-          <div className="glass-panel px-3 py-2 rounded-2xl flex items-center space-x-2.5 w-full md:w-auto justify-center overflow-x-auto">
+
+          <button
+            onClick={() => setPlayMode('laser-harp')}
+            className="px-4 py-2 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/40 border border-cyan-400/50 text-cyan-200 text-xs font-mono font-bold flex items-center space-x-2 transition-all shadow-[0_0_15px_rgba(0,242,255,0.3)] hover:scale-105 cursor-pointer"
+          >
+            <Guitar className="w-4 h-4 text-cyan-300" />
+            <span>Volver a Instrumentos 🎵</span>
+          </button>
+        </footer>
+      ) : (
+        <footer className="w-full flex flex-col md:flex-row items-center justify-between gap-3 pointer-events-auto">
+          {/* Mode Selector */}
+          <div className="glass-panel p-1.5 rounded-2xl flex items-center space-x-1 w-full md:w-auto justify-center overflow-x-auto">
+            {/* NON-VERBAL AAC COMMUNICATOR BUTTON */}
+            <button
+              onClick={() => setPlayMode('aac-communicator')}
+              className="px-3 py-2 rounded-xl text-xs font-mono flex items-center space-x-1.5 transition-all text-emerald-400 hover:text-white hover:bg-emerald-950/40 border border-emerald-500/30"
+              title="Módulo Accesible para personas no verbales que solo pueden mover las manos"
+            >
+              <MessageSquare className="w-3.5 h-3.5 text-emerald-400" />
+              <span>🗣️ VOZ AÉREA (AAC)</span>
+            </button>
+
+            {/* ROCK DISTORTION PRESET BUTTON */}
+            {onLoadRockPreset && (
+              <button
+                onClick={onLoadRockPreset}
+                className={`px-3 py-2 rounded-xl text-xs font-mono flex items-center space-x-1.5 transition-all ${
+                  timbre === 'distortion-guitar'
+                    ? 'bg-[#EF3800] text-white font-bold shadow-[0_0_20px_rgba(239,56,0,0.8)] border border-orange-400 animate-pulse'
+                    : 'text-[#EF3800] hover:text-white hover:bg-orange-950/40 border border-[#EF3800]/30'
+                }`}
+                title="Guitarra Heavy Rock con Distorsión (Drop D)"
+              >
+                <Flame className="w-4 h-4 text-[#EF3800]" />
+                <span>🎸 DISTORSIÓN</span>
+              </button>
+            )}
+
+            {/* FUZZ HEAVY PRESET BUTTON */}
+            {onLoadFuzzPreset && (
+              <button
+                onClick={onLoadFuzzPreset}
+                className={`px-3 py-2 rounded-xl text-xs font-mono flex items-center space-x-1.5 transition-all ${
+                  timbre === 'fuzz-guitar'
+                    ? 'bg-amber-500 text-slate-950 font-bold shadow-[0_0_20px_rgba(245,158,11,0.8)] border border-amber-300 animate-pulse'
+                    : 'text-amber-400 hover:text-white hover:bg-amber-950/40 border border-amber-500/30'
+                }`}
+                title="Guitarra Fuzz Pesado Vintage (Big Muff)"
+              >
+                <Zap className="w-4 h-4 text-amber-400" />
+                <span>⚡ FUZZ</span>
+              </button>
+            )}
+
+            {/* STAR WARS PRESET BUTTON */}
+            <button
+              onClick={onLoadImperialMarchPreset}
+              className={`px-3 py-2 rounded-xl text-xs font-mono flex items-center space-x-1.5 transition-all ${
+                isImperialMode
+                  ? 'bg-rose-600 text-white font-bold shadow-[0_0_20px_rgba(225,29,72,0.8)] border border-rose-400 animate-pulse'
+                  : 'text-rose-400 hover:text-white hover:bg-rose-950/40 border border-rose-500/30'
+              }`}
+            >
+              <Sword className="w-3.5 h-3.5" />
+              <span>⚔️ MARCHA</span>
+            </button>
+
+            {/* AIR DRUMS BUTTON */}
+            <button
+              onClick={() => setPlayMode('air-drums')}
+              className={`px-3 py-2 rounded-xl text-xs font-mono flex items-center space-x-1.5 transition-all ${
+                playMode === 'air-drums' && !isImperialMode
+                  ? 'bg-amber-400 text-slate-950 font-bold shadow-[0_0_20px_rgba(245,158,11,0.6)] animate-pulse'
+                  : 'text-amber-300 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <Disc3 className="w-3.5 h-3.5" />
+              <span>🥁 Batería</span>
+            </button>
+
+            <button
+              onClick={() => setPlayMode('draw-strings')}
+              className={`px-3 py-2 rounded-xl text-xs font-mono flex items-center space-x-1.5 transition-all ${
+                playMode === 'draw-strings' && !isImperialMode
+                  ? 'bg-[#00f2ff] text-slate-950 font-bold shadow-[0_0_15px_rgba(0,242,255,0.5)]'
+                  : 'text-slate-300 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>Dibujar</span>
+            </button>
+
+            <button
+              onClick={() => setPlayMode('elastic-two-hands')}
+              className={`px-3 py-2 rounded-xl text-xs font-mono flex items-center space-x-1.5 transition-all ${
+                playMode === 'elastic-two-hands' && !isImperialMode
+                  ? 'bg-[#00f2ff] text-slate-950 font-bold shadow-[0_0_15px_rgba(0,242,255,0.5)]'
+                  : 'text-slate-300 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <Zap className="w-3.5 h-3.5" />
+              <span>2-Manos</span>
+            </button>
+
+            <button
+              onClick={() => {
+                setPlayMode('laser-harp');
+                onLoadHarpPreset();
+              }}
+              className={`px-3 py-2 rounded-xl text-xs font-mono flex items-center space-x-1.5 transition-all ${
+                playMode === 'laser-harp' && !isImperialMode
+                  ? 'bg-[#00f2ff] text-slate-950 font-bold shadow-[0_0_15px_rgba(0,242,255,0.5)]'
+                  : 'text-slate-300 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <Music className="w-3.5 h-3.5" />
+              <span>Arpa</span>
+            </button>
+          </div>
+
+          {/* Timbre & Presets Panel (Shown only in strings modes) */}
+          {playMode !== 'air-drums' ? (
+            <div className="glass-panel px-3 py-2 rounded-2xl flex items-center space-x-2.5 w-full md:w-auto justify-center overflow-x-auto">
             <div className="flex items-center space-x-1.5 border-r border-slate-700/60 pr-2.5">
               <Sliders className="w-3.5 h-3.5 text-[#00f2ff]" />
               <select
@@ -580,6 +588,7 @@ export const HUDOverlay: React.FC<HUDOverlayProps> = ({
           </div>
         )}
       </footer>
+      )}
     </div>
   );
 };

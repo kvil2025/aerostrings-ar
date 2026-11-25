@@ -1,5 +1,4 @@
 import { AACCard, AACCategories } from '../types';
-import { soundManager } from '../audio/AudioEngine';
 
 export interface SpokenHistoryEntry {
   id: string;
@@ -227,17 +226,7 @@ export class AACManager {
     this.history.unshift(entry);
     if (this.history.length > 20) this.history.pop();
 
-    // 1. Play soft confirmation chime in Web Audio
-    if (card.priority) {
-      soundManager.pluckString(523.25, 0.95); // High C
-      setTimeout(() => soundManager.pluckString(659.25, 0.95), 90); // E5
-      setTimeout(() => soundManager.pluckString(783.99, 1.0), 180); // G5
-    } else {
-      soundManager.pluckString(392.0, 0.8); // G4
-      setTimeout(() => soundManager.pluckString(523.25, 0.85), 110); // C5
-    }
-
-    // 2. Pronounce out loud via Web Speech Synthesis
+    // Solo voz limpia sin ruidos ni acordes sintéticos
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       try {
         window.speechSynthesis.cancel(); // Cancel any ongoing utterance
