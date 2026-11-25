@@ -6,6 +6,7 @@ import { drumsManager } from './audio/DrumsEngine';
 import { CanvasRenderer } from './components/CanvasRenderer';
 import { HUDOverlay } from './components/HUDOverlay';
 import { HelpModal } from './components/HelpModal';
+import { AACView } from './components/AACView';
 import { Sparkles, RefreshCw, ShieldAlert } from 'lucide-react';
 
 const INITIAL_DRUM_PADS: DrumPad[] = [
@@ -456,6 +457,10 @@ export const App: React.FC = () => {
         currentNoteHover={hoverInfo}
         setCurrentNoteHover={setHoverInfo}
       />
+
+      {playMode === 'aac-communicator' && (
+        <AACView hands={hands} />
+      )}
 
       <HUDOverlay
         playMode={playMode}

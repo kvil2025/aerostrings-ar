@@ -282,9 +282,46 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
       }
 
       // -------------------------------------------------------------
+      // MODE: AAC NON-VERBAL COMMUNICATOR LASER POINTER
+      // -------------------------------------------------------------
+      if (playMode === 'aac-communicator') {
+        hands.forEach((hand) => {
+          const tip = hand.indexTip;
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(tip.x, tip.y, 16, 0, Math.PI * 2);
+          ctx.strokeStyle = '#10b981';
+          ctx.lineWidth = 2.5;
+          ctx.shadowColor = '#10b981';
+          ctx.shadowBlur = 20;
+          ctx.stroke();
+
+          ctx.beginPath();
+          ctx.moveTo(tip.x - 22, tip.y);
+          ctx.lineTo(tip.x + 22, tip.y);
+          ctx.moveTo(tip.x, tip.y - 22);
+          ctx.lineTo(tip.x, tip.y + 22);
+          ctx.strokeStyle = 'rgba(16, 185, 129, 0.7)';
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+
+          ctx.beginPath();
+          ctx.arc(tip.x, tip.y, 4, 0, Math.PI * 2);
+          ctx.fillStyle = '#ffffff';
+          ctx.fill();
+
+          ctx.font = 'bold 10px "JetBrains Mono", monospace';
+          ctx.fillStyle = '#10b981';
+          ctx.textAlign = 'center';
+          ctx.fillText('PUNTERO', tip.x, tip.y - 26);
+          ctx.restore();
+        });
+      }
+
+      // -------------------------------------------------------------
       // MODE: STRINGS & AIR HARP MODES
       // -------------------------------------------------------------
-      if (playMode !== 'air-drums') {
+      if (playMode !== 'air-drums' && playMode !== 'aac-communicator') {
         const pointers = hands.map((h) => ({ point: h.indexTip, isPinching: h.isPinching, isPick: true }));
         if (isMouseDownRef.current && mousePointRef.current) {
           pointers.push({ point: mousePointRef.current, isPinching: true, isPick: true });
@@ -437,15 +474,63 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
             ctx.shadowBlur = 22;
             ctx.stroke();
           } else {
-            const decay = Math.exp(-timeSincePluck / 320);
-            const maxDisplacement = isVibrating ? 15 * decay * Math.sin(timeSincePluck * 0.08) : 0;
-            const segments = 16;
+            const decay = Math.exp(-timeSincePluck / 450);
+            const segments = 40;
+            const baseAmp = isVibrating ? 24 * decay : 0;
+            const omega = 0.052;
+            const tMs = timeSincePluck;
+
+            // Traveling wave pulse that echoes back and forth between string endpoints
+            const bounceCycle = (tMs * 0.003) % 2;
+            const pulsePos = bounceCycle < 1 ? bounceCycle : 2 - bounceCycle;
+
+            // 1. Glowing Wave Aura Envelope (Motion blur standing wave boundary)
+            if (isVibrating && baseAmp > 2) {
+              ctx.save();
+              ctx.beginPath();
+              for (let i = 0; i <= segments; i++) {
+                const u = i / segments;
+                const envDisp = Math.sin(Math.PI * u) * baseAmp * 0.85;
+                const ex = str.start.x + dx * u + normalX * envDisp;
+                const ey = str.start.y + dy * u + normalY * envDisp;
+                if (i === 0) ctx.moveTo(ex, ey);
+                else ctx.lineTo(ex, ey);
+              }
+              for (let i = segments; i >= 0; i--) {
+                const u = i / segments;
+                const envDisp = -Math.sin(Math.PI * u) * baseAmp * 0.85;
+                const ex = str.start.x + dx * u + normalX * envDisp;
+                const ey = str.start.y + dy * u + normalY * envDisp;
+                ctx.lineTo(ex, ey);
+              }
+              ctx.closePath();
+              ctx.fillStyle = isVibrating ? 'rgba(245, 158, 11, 0.12)' : 'rgba(0, 242, 255, 0.08)';
+              ctx.fill();
+              ctx.restore();
+            }
+
+            // 2. Physical Multi-Harmonic Undulating Wave
+            ctx.beginPath();
             for (let i = 0; i <= segments; i++) {
-              const t = i / segments;
-              const wave = Math.sin(Math.PI * t);
-              const disp = wave * maxDisplacement;
-              const px = str.start.x + dx * t + normalX * disp;
-              const py = str.start.y + dy * t + normalY * disp;
+              const u = i / segments;
+              let disp = 0;
+
+              if (isVibrating) {
+                // Standing wave harmonics (fundamental, octave S-curve, third and fourth ripples)
+                const h1 = Math.sin(Math.PI * u) * Math.sin(tMs * omega);
+                const h2 = 0.58 * Math.sin(2 * Math.PI * u) * Math.sin(tMs * omega * 2.02 + 0.45);
+                const h3 = 0.35 * Math.sin(3 * Math.PI * u) * Math.sin(tMs * omega * 3.04 + 0.9);
+                const h4 = 0.20 * Math.sin(4 * Math.PI * u) * Math.sin(tMs * omega * 4.08 + 1.3);
+
+                // Traveling ripple packet along the string length
+                const distToPulse = Math.abs(u - pulsePos);
+                const ripple = Math.exp(-distToPulse * distToPulse * 45) * Math.sin(u * 12 * Math.PI - tMs * 0.08) * 0.45;
+
+                disp = (h1 + h2 + h3 + h4 + ripple) * baseAmp;
+              }
+
+              const px = str.start.x + dx * u + normalX * disp;
+              const py = str.start.y + dy * u + normalY * disp;
               if (i === 0) ctx.moveTo(px, py);
               else ctx.lineTo(px, py);
             }

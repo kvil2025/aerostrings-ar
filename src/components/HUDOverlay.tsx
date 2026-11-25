@@ -16,7 +16,8 @@ import {
   Sun,
   Disc3,
   Sword,
-  Flame
+  Flame,
+  MessageSquare
 } from 'lucide-react';
 import { soundManager } from '../audio/AudioEngine';
 
@@ -249,7 +250,7 @@ export const HUDOverlay: React.FC<HUDOverlayProps> = ({
           )}
 
           {/* STRING PLUCK FEEDBACK */}
-          {playMode !== 'air-drums' && lastPlucked && (
+          {playMode !== 'air-drums' && playMode !== 'aac-communicator' && lastPlucked && (
             <div className={`glass-panel-glow px-6 py-3 rounded-2xl flex items-center space-x-4 animate-bounce ${
               timbre === 'distortion-guitar'
                 ? 'border-[#EF3800]/70 shadow-[0_0_30px_rgba(239,56,0,0.5)] bg-black/80'
@@ -304,6 +305,20 @@ export const HUDOverlay: React.FC<HUDOverlayProps> = ({
       <footer className="w-full flex flex-col md:flex-row items-center justify-between gap-3 pointer-events-auto">
         {/* Mode Selector */}
         <div className="glass-panel p-1.5 rounded-2xl flex items-center space-x-1 w-full md:w-auto justify-center overflow-x-auto">
+          {/* NON-VERBAL AAC COMMUNICATOR BUTTON */}
+          <button
+            onClick={() => setPlayMode('aac-communicator')}
+            className={`px-3 py-2 rounded-xl text-xs font-mono flex items-center space-x-1.5 transition-all ${
+              playMode === 'aac-communicator'
+                ? 'bg-emerald-400 text-slate-950 font-bold shadow-[0_0_20px_rgba(16,185,129,0.8)] border border-emerald-300 animate-pulse'
+                : 'text-emerald-400 hover:text-white hover:bg-emerald-950/40 border border-emerald-500/30'
+            }`}
+            title="Módulo Accesible para personas no verbales que solo pueden mover las manos"
+          >
+            <MessageSquare className="w-3.5 h-3.5 text-emerald-400" />
+            <span>🗣️ VOZ AÉREA (AAC)</span>
+          </button>
+
           {/* ROCK DISTORTION PRESET BUTTON */}
           {onLoadRockPreset && (
             <button
@@ -403,7 +418,12 @@ export const HUDOverlay: React.FC<HUDOverlayProps> = ({
         </div>
 
         {/* Timbre & Presets Panel (Shown only in strings modes) */}
-        {playMode !== 'air-drums' ? (
+        {playMode === 'aac-communicator' ? (
+          <div className="glass-panel px-4 py-2 rounded-2xl flex items-center space-x-2 text-xs font-mono text-emerald-300">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+            <span>Apunta con el dedo 0.6s sobre cualquier tarjeta para hablar en voz alta</span>
+          </div>
+        ) : playMode !== 'air-drums' ? (
           <div className="glass-panel px-3 py-2 rounded-2xl flex items-center space-x-2.5 w-full md:w-auto justify-center overflow-x-auto">
             <div className="flex items-center space-x-1.5 border-r border-slate-700/60 pr-2.5">
               <Sliders className="w-3.5 h-3.5 text-[#00f2ff]" />

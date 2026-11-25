@@ -38,7 +38,19 @@ export interface AeroString {
   pullDisplacement?: number;
 }
 
-export type PlayMode = 'air-drums' | 'draw-strings' | 'elastic-two-hands' | 'laser-harp';
+export type PlayMode = 'air-drums' | 'draw-strings' | 'elastic-two-hands' | 'laser-harp' | 'aac-communicator';
+
+export type AACCategories = 'quick-answers' | 'vital-needs' | 'feelings' | 'actions';
+
+export interface AACCard {
+  id: string;
+  category: AACCategories;
+  emoji: string;
+  label: string;
+  speechText: string;
+  color: string;
+  priority?: boolean;
+}
 
 export type InstrumentTimbre = 
   | 'distortion-guitar'
