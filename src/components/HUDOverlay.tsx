@@ -375,7 +375,7 @@ export const HUDOverlay: React.FC<HUDOverlayProps> = ({
                 title="Limpiar todas las cuerdas"
               >
                 <RotateCcw className="w-3 h-3 text-rose-400" />
-                <span>Limpiar</span>
+                <span>Limpiar {stringsCount > 0 ? `(${stringsCount})` : ''}</span>
               </button>
             </div>
           </div>
