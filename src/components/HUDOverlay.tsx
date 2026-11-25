@@ -21,6 +21,28 @@ import {
 } from 'lucide-react';
 import { soundManager } from '../audio/AudioEngine';
 
+// Partituras verticales de Star Wars para los bordes de la pantalla
+const imperialPhrase1 = [
+  { step: '1', name: 'Sol', note: 'Sol', rhythm: '♩', color: 'text-[#EF3800]' },
+  { step: '2', name: 'Sol', note: 'Sol', rhythm: '♩', color: 'text-[#EF3800]' },
+  { step: '3', name: 'Sol', note: 'Sol', rhythm: '♩', color: 'text-[#EF3800]' },
+  { step: '4', name: 'Mib', note: 'Mib', rhythm: '♪', color: 'text-[#00f2ff]' },
+  { step: '5', name: 'Sib', note: 'Sib', rhythm: '♪', color: 'text-[#f59e0b]' },
+  { step: '6', name: 'Sol', note: 'Sol', rhythm: '♩', color: 'text-[#EF3800]' },
+];
+
+const imperialPhrase2 = [
+  { step: '7', name: 'Re', note: 'Re', rhythm: '♩', color: 'text-[#00f2ff]' },
+  { step: '8', name: 'Re', note: 'Re', rhythm: '♩', color: 'text-[#00f2ff]' },
+  { step: '9', name: 'Re', note: 'Re', rhythm: '♩', color: 'text-[#00f2ff]' },
+  { step: '10', name: 'Mib4', note: 'Mib', rhythm: '♪', color: 'text-[#f59e0b]' },
+  { step: '11', name: 'Sib', note: 'Sib', rhythm: '♪', color: 'text-[#f59e0b]' },
+  { step: '12', name: 'Fa#', note: 'Fa#', rhythm: '♩', color: 'text-[#EF3800]' },
+  { step: '13', name: 'Mib', note: 'Mib', rhythm: '♪', color: 'text-[#00f2ff]' },
+  { step: '14', name: 'Sib', note: 'Sib', rhythm: '♪', color: 'text-[#f59e0b]' },
+  { step: '15', name: 'Sol', note: 'Sol', rhythm: '♩', color: 'text-[#EF3800]' },
+];
+
 interface HUDOverlayProps {
   playMode: PlayMode;
   setPlayMode: (mode: PlayMode) => void;
@@ -213,29 +235,92 @@ export const HUDOverlay: React.FC<HUDOverlayProps> = ({
         </div>
       )}
 
-      {/* Center Note / Drum Hit Display & Interactive Tablatura */}
-      {audioState === 'running' && (
-        <div className="flex flex-col items-center justify-center my-auto pointer-events-none">
-          {/* STAR WARS INTERACTIVE GUIDE HUD */}
-          {isImperialMode && (
-            <div className="mb-4 glass-panel-glow px-6 py-3 rounded-2xl border-rose-500/50 shadow-[0_0_30px_rgba(239,56,0,0.35)] text-center max-w-xl">
-              <div className="text-rose-400 font-bold text-sm mb-1.5 flex items-center justify-center space-x-2 font-mono">
-                <Sword className="w-4 h-4 text-rose-500" />
-                <span>PARTITURA AÉREA: MARCHA IMPERIAL (STAR WARS)</span>
+      {/* STAR WARS VERTICAL SCORE DISPLAYS (DISPUESTOS EN LOS BORDES LATERALES) */}
+      {isImperialMode && audioState === 'running' && (
+        <>
+          {/* BORDE IZQUIERDO: 1ª FRASE (INTRO & RITMO IMPERIAL) */}
+          <div className="fixed left-2 sm:left-4 top-24 bottom-24 z-20 pointer-events-none flex flex-col justify-center max-w-[125px] sm:max-w-[160px] animate-in fade-in slide-in-from-left duration-300">
+            <div className="glass-panel-glow p-2 sm:p-2.5 rounded-2xl border-rose-500/40 shadow-[0_0_25px_rgba(239,56,0,0.25)] bg-[#050508]/90 backdrop-blur-md flex flex-col">
+              {/* Header */}
+              <div className="border-b border-rose-500/30 pb-1.5 mb-2 flex items-center space-x-1 text-rose-400 font-mono text-[11px] sm:text-xs font-bold">
+                <Sword className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                <span className="truncate">1ª FRASE</span>
+                <span className="text-[9px] px-1 py-0.2 rounded bg-rose-500/20 text-rose-300 ml-auto font-mono">G-min</span>
               </div>
-              <div className="text-xs font-mono space-y-1">
-                <div className="bg-rose-950/40 px-3 py-1 rounded border border-rose-500/30">
-                  <span className="text-rose-300 font-bold">1ª Frase: </span>
-                  <span className="text-white tracking-widest">[Sol] [Sol] [Sol] — [Mib] [Sib] [Sol]</span>
-                </div>
-                <div className="bg-amber-950/30 px-3 py-1 rounded border border-amber-500/30">
-                  <span className="text-amber-300 font-bold">2ª Frase: </span>
-                  <span className="text-white tracking-widest">[Re] [Re] [Re] — [Mib4] [Sib] [Fa#] • [Mib] [Sib] [Sol]</span>
-                </div>
+
+              {/* Lista Vertical de Notas con feedback visual */}
+              <div className="space-y-1 sm:space-y-1.5 font-mono text-[10px] sm:text-xs">
+                {imperialPhrase1.map((step, idx) => {
+                  const isCurrent = lastPlucked?.note.toLowerCase().includes(step.note.toLowerCase().slice(0, 3));
+                  return (
+                    <div
+                      key={idx}
+                      className={`flex items-center justify-between px-2 py-1 rounded transition-all duration-150 ${
+                        isCurrent
+                          ? 'bg-rose-600/50 border border-rose-400 text-white font-bold shadow-[0_0_12px_rgba(225,29,72,0.8)] scale-105'
+                          : 'bg-black/50 border border-rose-500/20 text-slate-300'
+                      }`}
+                    >
+                      <span className="text-slate-400 text-[9px] mr-1">{step.step}.</span>
+                      <span className={`font-bold ${isCurrent ? 'text-white' : step.color}`}>
+                        {step.name}
+                      </span>
+                      <span className="text-[9px] text-slate-400 ml-1">{step.rhythm}</span>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="mt-2 pt-1 border-t border-rose-500/20 text-[9px] text-slate-400 font-mono text-center">
+                Ritmo: ♩♩♩ ♪♪♩
               </div>
             </div>
-          )}
+          </div>
 
+          {/* BORDE DERECHO: 2ª FRASE (DESARROLLO & CLÍMAX) */}
+          <div className="fixed right-2 sm:right-4 top-24 bottom-24 z-20 pointer-events-none flex flex-col justify-center max-w-[125px] sm:max-w-[160px] animate-in fade-in slide-in-from-right duration-300">
+            <div className="glass-panel-glow p-2 sm:p-2.5 rounded-2xl border-amber-500/40 shadow-[0_0_25px_rgba(245,158,11,0.25)] bg-[#050508]/90 backdrop-blur-md flex flex-col">
+              {/* Header */}
+              <div className="border-b border-amber-500/30 pb-1.5 mb-2 flex items-center space-x-1 text-amber-400 font-mono text-[11px] sm:text-xs font-bold">
+                <Sword className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                <span className="truncate">2ª FRASE</span>
+                <span className="text-[9px] px-1 py-0.2 rounded bg-amber-500/20 text-amber-300 ml-auto font-mono">CLÍMAX</span>
+              </div>
+
+              {/* Lista Vertical de Notas con feedback visual */}
+              <div className="space-y-1 sm:space-y-1.5 font-mono text-[10px] sm:text-xs">
+                {imperialPhrase2.map((step, idx) => {
+                  const isCurrent = lastPlucked?.note.toLowerCase().includes(step.note.toLowerCase().slice(0, 3));
+                  return (
+                    <div
+                      key={idx}
+                      className={`flex items-center justify-between px-2 py-0.5 sm:py-1 rounded transition-all duration-150 ${
+                        isCurrent
+                          ? 'bg-amber-500/50 border border-amber-300 text-white font-bold shadow-[0_0_12px_rgba(245,158,11,0.8)] scale-105'
+                          : 'bg-black/50 border border-amber-500/20 text-slate-300'
+                      }`}
+                    >
+                      <span className="text-slate-400 text-[9px] mr-1">{step.step}.</span>
+                      <span className={`font-bold ${isCurrent ? 'text-white' : step.color}`}>
+                        {step.name}
+                      </span>
+                      <span className="text-[9px] text-slate-400 ml-1">{step.rhythm}</span>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="mt-1.5 pt-1 border-t border-amber-500/20 text-[9px] text-slate-400 font-mono text-center">
+                Clímax & Cierre
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Center Note / Drum Hit Display & Feedback */}
+      {audioState === 'running' && (
+        <div className="flex flex-col items-center justify-center my-auto pointer-events-none">
           {/* DRUM HIT FEEDBACK */}
           {playMode === 'air-drums' && lastDrumHit && (
             <div className="glass-panel-glow px-6 py-3 rounded-2xl flex items-center space-x-4 animate-bounce border-amber-500/50 shadow-[0_0_30px_rgba(245,158,11,0.3)]">

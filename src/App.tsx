@@ -396,8 +396,8 @@ export const App: React.FC = () => {
       { name: 'Fa# (F#3)', freq: 184.99, len: 580, color: '#EF3800' },
     ];
 
-    const startX = w * 0.18;
-    const spacing = (w * 0.64) / (imperialNotes.length - 1);
+    const startX = w * 0.22;
+    const spacing = (w * 0.56) / (imperialNotes.length - 1);
 
     const presetStrings: AeroString[] = imperialNotes.map((item, idx) => {
       const x = startX + idx * spacing;
