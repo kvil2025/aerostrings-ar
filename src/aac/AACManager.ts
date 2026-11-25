@@ -1,4 +1,4 @@
-import { AACCard, AACCategories } from '../types';
+import { AACCard, AACCategories, AACVoiceModel } from '../types';
 
 export interface SpokenHistoryEntry {
   id: string;
@@ -164,9 +164,15 @@ export class AACManager {
 
   private currentCategory: AACCategories = 'quick-answers';
   private speechSynth: SpeechSynthesis | null = null;
-  private spanishVoice: SpeechSynthesisVoice | null = null;
+  private currentVoiceModel: AACVoiceModel = 'female-natural';
+  private availableVoices: SpeechSynthesisVoice[] = [];
+  private selectedVoice: SpeechSynthesisVoice | null = null;
+  private selectedVoiceURI: string | null = null;
+  private pitch = 1.12;
+  private rate = 0.95;
   private history: SpokenHistoryEntry[] = [];
   private onSpeechListeners: ((entry: SpokenHistoryEntry) => void)[] = [];
+  private onVoiceChangeListeners: (() => void)[] = [];
   private isVoiceReady = false;
 
   public getIsVoiceReady(): boolean {
@@ -186,16 +192,196 @@ export class AACManager {
   private initVoices() {
     if (!this.speechSynth) return;
     const voices = this.speechSynth.getVoices();
-    // Prioritize natural Spanish voices (Chile, Spain, Mexico, US)
-    const esVoice =
-      voices.find((v) => v.lang.startsWith('es-CL')) ||
-      voices.find((v) => v.lang.startsWith('es-ES') && (v.name.includes('Natural') || v.name.includes('Neural'))) ||
-      voices.find((v) => v.lang.startsWith('es-')) ||
-      voices.find((v) => v.lang.toLowerCase().includes('spanish'));
+    this.availableVoices = voices;
 
-    if (esVoice) {
-      this.spanishVoice = esVoice;
+    if (voices.length > 0) {
       this.isVoiceReady = true;
+      this.applyVoiceModel(this.currentVoiceModel);
+      this.notifyVoiceChange();
+    }
+  }
+
+  public onVoicesUpdate(cb: () => void) {
+    this.onVoiceChangeListeners.push(cb);
+  }
+
+  private notifyVoiceChange() {
+    this.onVoiceChangeListeners.forEach((cb) => cb());
+  }
+
+  public getAvailableVoices(): SpeechSynthesisVoice[] {
+    if (!this.speechSynth) return [];
+    const all = this.availableVoices.length > 0 ? this.availableVoices : this.speechSynth.getVoices();
+    // Sort so Spanish voices are first
+    return [...all].sort((a, b) => {
+      const aIsEs = a.lang.toLowerCase().startsWith('es') ? 1 : 0;
+      const bIsEs = b.lang.toLowerCase().startsWith('es') ? 1 : 0;
+      return bIsEs - aIsEs;
+    });
+  }
+
+  public getVoiceModel(): AACVoiceModel {
+    return this.currentVoiceModel;
+  }
+
+  public setVoiceModel(model: AACVoiceModel) {
+    this.currentVoiceModel = model;
+    this.applyVoiceModel(model);
+    this.notifyVoiceChange();
+  }
+
+  private applyVoiceModel(model: AACVoiceModel) {
+    const voices = this.getAvailableVoices();
+    const esVoices = voices.filter((v) => v.lang.toLowerCase().startsWith('es'));
+
+    switch (model) {
+      case 'female-natural': {
+        this.pitch = 1.12;
+        this.rate = 0.95;
+        // Search for natural female voice
+        const femaleVoice =
+          esVoices.find((v) => {
+            const n = v.name.toLowerCase();
+            return (
+              n.includes('monica') ||
+              n.includes('paulina') ||
+              n.includes('helena') ||
+              n.includes('laura') ||
+              n.includes('lucia') ||
+              n.includes('sofia') ||
+              n.includes('female') ||
+              n.includes('mujer')
+            );
+          }) ||
+          esVoices.find((v) => v.lang.startsWith('es-CL')) ||
+          esVoices[0] ||
+          voices[0] ||
+          null;
+
+        this.selectedVoice = femaleVoice;
+        this.selectedVoiceURI = femaleVoice?.voiceURI || null;
+        break;
+      }
+
+      case 'male-calm': {
+        this.pitch = 0.88;
+        this.rate = 0.92;
+        // Search for calm male voice
+        const maleVoice =
+          esVoices.find((v) => {
+            const n = v.name.toLowerCase();
+            return (
+              n.includes('jorge') ||
+              n.includes('diego') ||
+              n.includes('juan') ||
+              n.includes('pablo') ||
+              n.includes('carlos') ||
+              n.includes('enrique') ||
+              n.includes('alvaro') ||
+              n.includes('miguel') ||
+              n.includes('male') ||
+              n.includes('hombre')
+            );
+          }) ||
+          esVoices.find((v) => v.name.includes('Natural') || v.name.includes('Neural')) ||
+          esVoices[esVoices.length - 1] ||
+          voices[0] ||
+          null;
+
+        this.selectedVoice = maleVoice;
+        this.selectedVoiceURI = maleVoice?.voiceURI || null;
+        break;
+      }
+
+      case 'neutral-clear': {
+        this.pitch = 1.0;
+        this.rate = 1.0;
+        const neutralVoice =
+          esVoices.find((v) => v.lang.startsWith('es-ES') || v.lang.startsWith('es-419')) ||
+          esVoices[0] ||
+          voices[0] ||
+          null;
+
+        this.selectedVoice = neutralVoice;
+        this.selectedVoiceURI = neutralVoice?.voiceURI || null;
+        break;
+      }
+
+      case 'system-custom': {
+        if (this.selectedVoiceURI) {
+          const match = voices.find((v) => v.voiceURI === this.selectedVoiceURI);
+          if (match) this.selectedVoice = match;
+        }
+        break;
+      }
+    }
+  }
+
+  public setSelectedVoiceURI(uri: string) {
+    this.selectedVoiceURI = uri;
+    this.currentVoiceModel = 'system-custom';
+    const match = this.getAvailableVoices().find((v) => v.voiceURI === uri);
+    if (match) {
+      this.selectedVoice = match;
+    }
+    this.notifyVoiceChange();
+  }
+
+  public getSelectedVoice(): SpeechSynthesisVoice | null {
+    return this.selectedVoice;
+  }
+
+  public getPitch(): number {
+    return this.pitch;
+  }
+
+  public setPitch(pitch: number) {
+    this.pitch = Math.max(0.5, Math.min(2.0, pitch));
+  }
+
+  public getRate(): number {
+    return this.rate;
+  }
+
+  public setRate(rate: number) {
+    this.rate = Math.max(0.5, Math.min(2.0, rate));
+  }
+
+  /**
+   * Immediately stops any speech synthesis to guarantee voice isolation
+   */
+  public cancelSpeech() {
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      try {
+        window.speechSynthesis.cancel();
+      } catch (e) {
+        console.warn('Cancel speech error:', e);
+      }
+    }
+  }
+
+  public previewVoice(phrase?: string) {
+    this.cancelSpeech();
+    const text = phrase || (
+      this.currentVoiceModel === 'female-natural'
+        ? 'Voz femenina natural activada'
+        : this.currentVoiceModel === 'male-calm'
+        ? 'Voz masculina serena activada'
+        : 'Voz clara configurada'
+    );
+
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      const utterance = new SpeechSynthesisUtterance(text);
+      if (this.selectedVoice) {
+        utterance.voice = this.selectedVoice;
+        utterance.lang = this.selectedVoice.lang;
+      } else {
+        utterance.lang = 'es-ES';
+      }
+      utterance.pitch = this.pitch;
+      utterance.rate = this.rate;
+      utterance.volume = 1.0;
+      window.speechSynthesis.speak(utterance);
     }
   }
 
@@ -231,12 +417,14 @@ export class AACManager {
       try {
         window.speechSynthesis.cancel(); // Cancel any ongoing utterance
         const utterance = new SpeechSynthesisUtterance(card.speechText);
-        utterance.lang = this.spanishVoice?.lang || 'es-ES';
-        if (this.spanishVoice) {
-          utterance.voice = this.spanishVoice;
+        if (this.selectedVoice) {
+          utterance.voice = this.selectedVoice;
+          utterance.lang = this.selectedVoice.lang;
+        } else {
+          utterance.lang = 'es-ES';
         }
-        utterance.rate = 0.95; // Clear, deliberate, natural pacing
-        utterance.pitch = 1.0;
+        utterance.rate = this.rate;
+        utterance.pitch = this.pitch;
         utterance.volume = 1.0;
         window.speechSynthesis.speak(utterance);
       } catch (e) {

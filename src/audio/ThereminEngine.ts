@@ -283,7 +283,8 @@ export class ThereminEngine {
     const targetVol = Math.pow(rawVolRatio, 1.8) * 0.9;
 
     // Update Web Audio nodes smoothly with targetAtTime (zero clicks, organic glissando)
-    if (this.primaryOsc && this.harmonicOsc && this.voiceGain) {
+    if (this.primaryOsc && this.harmonicOsc && this.voiceGain && this.masterGain) {
+      this.masterGain.gain.setValueAtTime(0.75, now);
       // 32ms smoothing provides immediate response while retaining natural hand vibrato
       this.primaryOsc.frequency.setTargetAtTime(targetFreq, now, 0.032);
       this.harmonicOsc.frequency.setTargetAtTime(targetFreq, now, 0.032);
@@ -326,11 +327,19 @@ export class ThereminEngine {
   }
 
   /**
-   * Cleanly mutes sound when leaving Theremin mode
+   * Cleanly mutes sound when leaving Theremin mode (Strict Isolation)
    */
   public stop() {
-    if (this.voiceGain && soundManager.ctx) {
-      this.voiceGain.gain.setTargetAtTime(0, soundManager.ctx.currentTime, 0.08);
+    if (soundManager.ctx) {
+      const now = soundManager.ctx.currentTime;
+      if (this.voiceGain) {
+        this.voiceGain.gain.cancelScheduledValues(now);
+        this.voiceGain.gain.setValueAtTime(0, now);
+      }
+      if (this.masterGain) {
+        this.masterGain.gain.cancelScheduledValues(now);
+        this.masterGain.gain.setValueAtTime(0, now);
+      }
     }
     this.currentState = {
       ...this.currentState,

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { AACCard, AACCategories, HandData } from '../types';
+import { AACCard, AACCategories, AACVoiceModel, HandData } from '../types';
 import { aacManager, SpokenHistoryEntry } from '../aac/AACManager';
-import { Volume2, Heart, ShieldAlert, Sparkles, Check, HelpCircle } from 'lucide-react';
+import { Volume2, Heart, ShieldAlert, Sparkles, Check, HelpCircle, User, Users } from 'lucide-react';
 
 interface AACViewProps {
   hands: HandData[];
@@ -15,6 +15,11 @@ export const AACView: React.FC<AACViewProps> = ({ hands, onTriggerCard }) => {
   const [hoveredCardId, setHoveredCardId] = useState<string | null>(null);
   const [dwellProgress, setDwellProgress] = useState<number>(0);
   const [activeFlashes, setActiveFlashes] = useState<{ [cardId: string]: number }>({});
+
+  // Voice model selection state
+  const [voiceModel, setVoiceModel] = useState<AACVoiceModel>(aacManager.getVoiceModel());
+  const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>(aacManager.getAvailableVoices());
+  const [selectedVoiceURI, setSelectedVoiceURI] = useState<string>(aacManager.getSelectedVoice()?.voiceURI || '');
 
   // Category air-hover dwell state
   const [hoveredCat, setHoveredCat] = useState<AACCategories | null>(null);
@@ -36,10 +41,15 @@ export const AACView: React.FC<AACViewProps> = ({ hands, onTriggerCard }) => {
     '¿Estás de acuerdo con esto?',
   ];
 
-  // Subscribe to speech history
+  // Subscribe to speech history and voice updates
   useEffect(() => {
     aacManager.onSpeech((entry) => {
       setLastSpoken(entry);
+    });
+
+    aacManager.onVoicesUpdate(() => {
+      setAvailableVoices(aacManager.getAvailableVoices());
+      setSelectedVoiceURI(aacManager.getSelectedVoice()?.voiceURI || '');
     });
   }, []);
 
@@ -244,6 +254,94 @@ export const AACView: React.FC<AACViewProps> = ({ hands, onTriggerCard }) => {
             </button>
           </div>
         )}
+
+        {/* Independent Voice Model Selector Strip */}
+        <div className="w-full glass-panel px-3 py-1.5 rounded-xl flex items-center justify-between text-xs font-mono border border-emerald-500/30 gap-2 overflow-x-auto shadow-[0_0_15px_rgba(16,185,129,0.15)]">
+          <div className="flex items-center space-x-1.5 text-emerald-400 shrink-0">
+            <Users className="w-3.5 h-3.5 text-emerald-400" />
+            <span className="text-[11px] font-bold text-white tracking-wide">MODELO DE VOZ:</span>
+          </div>
+
+          <div className="flex items-center space-x-1.5 shrink-0">
+            <button
+              onClick={() => {
+                aacManager.setVoiceModel('female-natural');
+                setVoiceModel('female-natural');
+                aacManager.previewVoice();
+              }}
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-mono flex items-center space-x-1 transition-all cursor-pointer ${
+                voiceModel === 'female-natural'
+                  ? 'bg-emerald-400 text-slate-950 font-bold shadow-[0_0_12px_rgba(16,185,129,0.6)]'
+                  : 'bg-white/5 hover:bg-white/10 text-emerald-300'
+              }`}
+              title="Voz femenina natural, clara y suave"
+            >
+              <span>👩 Femenina</span>
+            </button>
+
+            <button
+              onClick={() => {
+                aacManager.setVoiceModel('male-calm');
+                setVoiceModel('male-calm');
+                aacManager.previewVoice();
+              }}
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-mono flex items-center space-x-1 transition-all cursor-pointer ${
+                voiceModel === 'male-calm'
+                  ? 'bg-emerald-400 text-slate-950 font-bold shadow-[0_0_12px_rgba(16,185,129,0.6)]'
+                  : 'bg-white/5 hover:bg-white/10 text-emerald-300'
+              }`}
+              title="Voz masculina serena y comprensiva"
+            >
+              <span>👨 Masculina</span>
+            </button>
+
+            <button
+              onClick={() => {
+                aacManager.setVoiceModel('neutral-clear');
+                setVoiceModel('neutral-clear');
+                aacManager.previewVoice();
+              }}
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-mono flex items-center space-x-1 transition-all cursor-pointer ${
+                voiceModel === 'neutral-clear'
+                  ? 'bg-emerald-400 text-slate-950 font-bold shadow-[0_0_12px_rgba(16,185,129,0.6)]'
+                  : 'bg-white/5 hover:bg-white/10 text-emerald-300'
+              }`}
+              title="Voz neutra directa"
+            >
+              <span>🧑 Neutra</span>
+            </button>
+
+            {availableVoices.length > 0 && (
+              <select
+                value={selectedVoiceURI}
+                onChange={(e) => {
+                  const uri = e.target.value;
+                  setSelectedVoiceURI(uri);
+                  aacManager.setSelectedVoiceURI(uri);
+                  setVoiceModel('system-custom');
+                  aacManager.previewVoice();
+                }}
+                className="bg-[#050508] border border-emerald-500/40 text-[10px] font-mono text-emerald-300 rounded-lg px-2 py-1 outline-none cursor-pointer max-w-[130px] sm:max-w-[180px] truncate"
+                title="Voces en español instaladas en tu dispositivo"
+              >
+                {availableVoices.map((v) => (
+                  <option key={v.voiceURI} value={v.voiceURI}>
+                    {v.name} ({v.lang})
+                  </option>
+                ))}
+              </select>
+            )}
+
+            <button
+              onClick={() => aacManager.previewVoice()}
+              className="px-2 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/40 text-emerald-300 text-[10px] font-mono flex items-center space-x-1 cursor-pointer shrink-0 border border-emerald-500/30"
+              title="Probar voz seleccionada"
+            >
+              <Volume2 className="w-3 h-3" />
+              <span>Probar</span>
+            </button>
+          </div>
+        </div>
 
         {/* PROMINENT CATEGORY NAVIGATION TABS (TOUCH & AIR POINTER) */}
         <div className="w-full flex items-center justify-center gap-2 sm:gap-3 p-1.5 rounded-2xl bg-[#050508]/90 backdrop-blur-xl border border-white/15 shadow-[0_0_30px_rgba(0,0,0,0.8)]">

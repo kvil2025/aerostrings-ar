@@ -43,6 +43,8 @@ export type PlayMode = 'theremin' | 'laser-harp' | 'draw-strings' | 'elastic-two
 export type ThereminTimbre = 'classic-sine' | 'vintage-tube' | 'cosmic-scifi';
 export type ThereminScale = 'continuous' | 'chromatic' | 'pentatonic';
 
+export type AACVoiceModel = 'female-natural' | 'male-calm' | 'neutral-clear' | 'system-custom';
+
 export interface ThereminState {
   isActive: boolean;
   frequency: number;

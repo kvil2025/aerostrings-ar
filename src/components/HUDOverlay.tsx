@@ -126,8 +126,6 @@ export const HUDOverlay: React.FC<HUDOverlayProps> = ({
               <Sword className="w-5 h-5 text-rose-500 animate-pulse" />
             ) : playMode === 'theremin' ? (
               <RadioTower className="w-5 h-5 text-[#00f2ff] animate-pulse" />
-            ) : playMode === 'air-drums' ? (
-              <Disc3 className="w-5 h-5 text-amber-400 animate-spin" style={{ animationDuration: '6s' }} />
             ) : (
               <Guitar className="w-5 h-5 text-[#00f2ff]" />
             )}
@@ -139,8 +137,6 @@ export const HUDOverlay: React.FC<HUDOverlayProps> = ({
                   <>IMPERIAL<span className="text-rose-500">CHORD</span> <span className="text-xs px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/40">SITH</span></>
                 ) : playMode === 'theremin' ? (
                   <>THEREMIN<span className="text-[#00f2ff]">AR</span> <span className="text-xs px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">1920 ETHERWAVE</span></>
-                ) : playMode === 'air-drums' ? (
-                  <>AIR<span className="text-amber-400">DRUMS</span> <span className="text-xs px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40">KIT</span></>
                 ) : (
                   <>AERO<span className="text-[#00f2ff]">STRINGS</span> <span className="text-xs px-1.5 py-0.5 rounded bg-[#EF3800]/20 text-[#EF3800] border border-[#EF3800]/40">AR</span></>
                 )}
@@ -153,8 +149,6 @@ export const HUDOverlay: React.FC<HUDOverlayProps> = ({
                   ? 'Marcha Imperial Star Wars (Sol Menor) • Notas Listas'
                   : playMode === 'theremin'
                   ? 'Theremin Sin Contacto • Tono en Mano Derecha y Volumen en Mano Izquierda'
-                  : playMode === 'air-drums' 
-                  ? 'Batería Completa en el Aire (Baquetas Virtuales)' 
                   : 'Cuerdas Holográficas & Síntesis Karplus-Strong'}
               </span>
             </p>
@@ -520,17 +514,18 @@ export const HUDOverlay: React.FC<HUDOverlayProps> = ({
               <span>⚔️ MARCHA</span>
             </button>
 
-            {/* AIR DRUMS BUTTON */}
+            {/* GUITAR CLEAN / STRINGS BUTTON */}
             <button
-              onClick={() => setPlayMode('air-drums')}
+              onClick={onLoadGuitarPreset}
               className={`px-3 py-2 rounded-xl text-xs font-mono flex items-center space-x-1.5 transition-all ${
-                playMode === 'air-drums' && !isImperialMode
-                  ? 'bg-amber-400 text-slate-950 font-bold shadow-[0_0_20px_rgba(245,158,11,0.6)] animate-pulse'
-                  : 'text-amber-300 hover:text-white hover:bg-white/5'
+                playMode === 'laser-harp' && timbre === 'acoustic-guitar' && !isImperialMode
+                  ? 'bg-[#00f2ff] text-slate-950 font-bold shadow-[0_0_15px_rgba(0,242,255,0.6)]'
+                  : 'text-cyan-300 hover:text-white hover:bg-white/5'
               }`}
+              title="Guitarra Acústica Limpia (E-A-D-G-B-E)"
             >
-              <Disc3 className="w-3.5 h-3.5" />
-              <span>🥁 Batería</span>
+              <Guitar className="w-3.5 h-3.5" />
+              <span>🎸 Cuerdas</span>
             </button>
 
             <button
@@ -618,7 +613,7 @@ export const HUDOverlay: React.FC<HUDOverlayProps> = ({
                 </select>
               </div>
             </div>
-          ) : playMode !== 'air-drums' ? (
+          ) : (
             <div className="glass-panel px-3 py-2 rounded-2xl flex items-center space-x-2.5 w-full md:w-auto justify-center overflow-x-auto">
             <div className="flex items-center space-x-1.5 border-r border-slate-700/60 pr-2.5">
               <Sliders className="w-3.5 h-3.5 text-[#00f2ff]" />
@@ -683,12 +678,7 @@ export const HUDOverlay: React.FC<HUDOverlayProps> = ({
               </button>
             </div>
           </div>
-        ) : (
-          <div className="glass-panel px-4 py-2 rounded-2xl flex items-center space-x-2 text-xs font-mono text-amber-200/90">
-            <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
-            <span>Mueve tus manos como baquetas o presiona las teclas [K, S, H, C, R, T, F]</span>
-          </div>
-        )}
+          )}
       </footer>
       )}
     </div>

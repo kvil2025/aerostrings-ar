@@ -90,6 +90,23 @@ export class AudioEngine {
     this.currentTimbre = timbre;
   }
 
+  public getTimbre(): InstrumentTimbre {
+    return this.currentTimbre;
+  }
+
+  public silenceAll() {
+    if (!this.ctx || !this.masterGain) return;
+    try {
+      const now = this.ctx.currentTime;
+      this.masterGain.gain.cancelScheduledValues(now);
+      this.masterGain.gain.setValueAtTime(0, now);
+      // Restore normal master gain cleanly after 40ms to eliminate all audio trails
+      this.masterGain.gain.setValueAtTime(0.85, now + 0.04);
+    } catch (e) {
+      console.warn('Audio silence error:', e);
+    }
+  }
+
   public setMasterVolume(vol: number) {
     if (this.masterGain && this.ctx) {
       this.masterGain.gain.setTargetAtTime(Math.max(0, Math.min(1, vol)), this.ctx.currentTime, 0.05);

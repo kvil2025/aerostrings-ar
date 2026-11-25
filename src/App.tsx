@@ -3,6 +3,7 @@ import { AeroString, HandData, InstrumentTimbre, PlayMode, ThereminScale, Therem
 import { handTracker } from './vision/HandTracker';
 import { soundManager } from './audio/AudioEngine';
 import { thereminEngine } from './audio/ThereminEngine';
+import { aacManager } from './aac/AACManager';
 import { CanvasRenderer } from './components/CanvasRenderer';
 import { HUDOverlay } from './components/HUDOverlay';
 import { HelpModal } from './components/HelpModal';
@@ -185,12 +186,33 @@ export const App: React.FC = () => {
     thereminEngine.setScale(thereminScale);
   }, [thereminScale]);
 
+  // 5. Strict Mode Isolation (Prevent cross-instrument & voice contamination)
+  useEffect(() => {
+    if (playMode !== 'theremin') {
+      thereminEngine.stop();
+    }
+    if (playMode !== 'aac-communicator') {
+      aacManager.cancelSpeech();
+    }
+    if (playMode === 'theremin' || playMode === 'aac-communicator') {
+      soundManager.silenceAll();
+      setIsImperialMode(false);
+    }
+  }, [playMode]);
+
   const handlePluck = useCallback((info: { note: string; freq: number; length: number }) => {
     setLastPlucked(info);
   }, []);
 
   const loadHarpPreset = useCallback(() => {
     setIsImperialMode(false);
+    setPlayMode('laser-harp');
+    setTimbre('crystal-harp');
+    soundManager.setTimbre('crystal-harp');
+    thereminEngine.stop();
+    aacManager.cancelSpeech();
+    soundManager.silenceAll();
+
     const w = window.innerWidth;
     const h = window.innerHeight;
     const notes = [
@@ -229,6 +251,13 @@ export const App: React.FC = () => {
 
   const loadGuitarPreset = useCallback(() => {
     setIsImperialMode(false);
+    setPlayMode('laser-harp');
+    setTimbre('acoustic-guitar');
+    soundManager.setTimbre('acoustic-guitar');
+    thereminEngine.stop();
+    aacManager.cancelSpeech();
+    soundManager.silenceAll();
+
     const w = window.innerWidth;
     const h = window.innerHeight;
     const guitarNotes = [
@@ -266,6 +295,13 @@ export const App: React.FC = () => {
 
   const loadRockPreset = useCallback(() => {
     setIsImperialMode(false);
+    setPlayMode('laser-harp');
+    setTimbre('distortion-guitar');
+    soundManager.setTimbre('distortion-guitar');
+    thereminEngine.stop();
+    aacManager.cancelSpeech();
+    soundManager.silenceAll();
+
     const w = window.innerWidth;
     const h = window.innerHeight;
 
@@ -301,14 +337,17 @@ export const App: React.FC = () => {
     });
 
     setStrings(presetStrings);
-    setPlayMode('laser-harp');
-    setTimbre('distortion-guitar');
-    soundManager.setTimbre('distortion-guitar');
-    soundManager.testChord();
   }, []);
 
   const loadFuzzPreset = useCallback(() => {
     setIsImperialMode(false);
+    setPlayMode('laser-harp');
+    setTimbre('fuzz-guitar');
+    soundManager.setTimbre('fuzz-guitar');
+    thereminEngine.stop();
+    aacManager.cancelSpeech();
+    soundManager.silenceAll();
+
     const w = window.innerWidth;
     const h = window.innerHeight;
 
@@ -344,23 +383,21 @@ export const App: React.FC = () => {
     });
 
     setStrings(presetStrings);
-    setPlayMode('laser-harp');
-    setTimbre('fuzz-guitar');
-    soundManager.setTimbre('fuzz-guitar');
-    soundManager.testChord();
   }, []);
 
   const loadImperialMarchPreset = useCallback(() => {
+    setIsImperialMode(true);
+    setPlayMode('laser-harp');
+    setTimbre('electric-lead');
+    soundManager.setTimbre('electric-lead');
+    thereminEngine.stop();
+    aacManager.cancelSpeech();
+    soundManager.silenceAll();
+
     const w = window.innerWidth;
     const h = window.innerHeight;
 
     // Imperial March core notes (Sol menor / G minor):
-    // 1: G3 (Sol 3) - 196.00 Hz
-    // 2: Eb3 (Mi♭ 3) - 155.56 Hz
-    // 3: Bb3 (Si♭ 3) - 233.08 Hz
-    // 4: D4 (Re 4) - 293.66 Hz
-    // 5: Eb4 (Mi♭ 4) - 311.13 Hz
-    // 6: F#3 (Fa# 3) - 184.99 Hz
     const imperialNotes = [
       { name: 'Sol (G3)', freq: 196.00, len: 540, color: '#EF3800' },
       { name: 'Mib (Eb3)', freq: 155.56, len: 640, color: '#00f2ff' },
@@ -392,11 +429,6 @@ export const App: React.FC = () => {
     });
 
     setStrings(presetStrings);
-    setPlayMode('laser-harp');
-    setIsImperialMode(true);
-    setTimbre('electric-lead');
-    soundManager.setTimbre('electric-lead');
-    soundManager.pluckString(196.00, 0.9);
   }, []);
 
   const clearStrings = useCallback(() => {
