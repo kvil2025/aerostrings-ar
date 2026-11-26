@@ -464,7 +464,19 @@ export const App: React.FC = () => {
       />
 
       {playMode === 'aac-communicator' && (
-        <AACView hands={hands} />
+        <AACView
+          hands={hands}
+          onExit={() => {
+            setPlayMode('laser-harp');
+            loadGuitarPreset();
+          }}
+          onSelectMode={(mode) => {
+            setPlayMode(mode);
+            if (mode === 'laser-harp') {
+              loadGuitarPreset();
+            }
+          }}
+        />
       )}
 
       <HUDOverlay

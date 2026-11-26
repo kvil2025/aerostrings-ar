@@ -117,7 +117,7 @@ export const HUDOverlay: React.FC<HUDOverlayProps> = ({
   setThereminScale,
 }) => {
   return (
-    <div className="absolute inset-0 pointer-events-none z-20 flex flex-col justify-between p-3 md:p-6">
+    <div className="absolute inset-0 pointer-events-none z-40 flex flex-col justify-between p-3 md:p-6">
       {/* Top Bar */}
       <header className="flex flex-wrap items-center justify-between w-full pointer-events-auto gap-3">
         <div className="flex items-center space-x-3">

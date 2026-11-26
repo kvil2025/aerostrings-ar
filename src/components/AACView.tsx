@@ -1,14 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { AACCard, AACCategories, AACVoiceModel, HandData } from '../types';
+import { AACCard, AACCategories, AACVoiceModel, HandData, PlayMode } from '../types';
 import { aacManager, SpokenHistoryEntry } from '../aac/AACManager';
-import { Volume2, Heart, ShieldAlert, Sparkles, Check, HelpCircle, User, Users } from 'lucide-react';
+import { Volume2, Heart, ShieldAlert, Sparkles, Check, HelpCircle, Users, Guitar, RadioTower } from 'lucide-react';
 
 interface AACViewProps {
   hands: HandData[];
   onTriggerCard?: (card: AACCard) => void;
+  onExit?: () => void;
+  onSelectMode?: (mode: PlayMode) => void;
 }
 
-export const AACView: React.FC<AACViewProps> = ({ hands, onTriggerCard }) => {
+export const AACView: React.FC<AACViewProps> = ({ hands, onTriggerCard, onExit, onSelectMode }) => {
   const [selectedCategory, setSelectedCategory] = useState<AACCategories>('quick-answers');
   const [currentPrompt, setCurrentPrompt] = useState<string>('¿Cómo te sientes en este momento?');
   const [lastSpoken, setLastSpoken] = useState<SpokenHistoryEntry | null>(null);
@@ -25,11 +27,20 @@ export const AACView: React.FC<AACViewProps> = ({ hands, onTriggerCard }) => {
   const [hoveredCat, setHoveredCat] = useState<AACCategories | null>(null);
   const [catDwellProgress, setCatDwellProgress] = useState<number>(0);
 
+  // Return to instruments air-hover dwell state
+  const [hoveredExit, setHoveredExit] = useState<'instruments' | 'theremin' | null>(null);
+  const [exitDwellProgress, setExitDwellProgress] = useState<number>(0);
+
   const hoverStartRef = useRef<{ cardId: string; time: number } | null>(null);
   const lastTriggeredCardRef = useRef<{ cardId: string; time: number } | null>(null);
   const cardElementsRef = useRef<{ [cardId: string]: HTMLDivElement | null }>({});
   const categoryRefs = useRef<{ [key in AACCategories]?: HTMLButtonElement | null }>({});
   const catHoverStartRef = useRef<{ cat: AACCategories; time: number } | null>(null);
+
+  const exitBtnTopRef = useRef<HTMLButtonElement | null>(null);
+  const exitBtnBottomRef = useRef<HTMLButtonElement | null>(null);
+  const thereminBtnRef = useRef<HTMLButtonElement | null>(null);
+  const exitHoverStartRef = useRef<{ target: 'instruments' | 'theremin'; time: number } | null>(null);
 
   const cards = aacManager.getCards(selectedCategory);
 
@@ -53,6 +64,22 @@ export const AACView: React.FC<AACViewProps> = ({ hands, onTriggerCard }) => {
     });
   }, []);
 
+  const handleExit = () => {
+    aacManager.cancelSpeech();
+    if (onSelectMode) {
+      onSelectMode('laser-harp');
+    } else if (onExit) {
+      onExit();
+    }
+  };
+
+  const handleSelectTheremin = () => {
+    aacManager.cancelSpeech();
+    if (onSelectMode) {
+      onSelectMode('theremin');
+    }
+  };
+
   const switchCategory = (cat: AACCategories) => {
     setSelectedCategory(cat);
     aacManager.setCategory(cat);
@@ -61,12 +88,14 @@ export const AACView: React.FC<AACViewProps> = ({ hands, onTriggerCard }) => {
     hoverStartRef.current = null;
   };
 
-  // Hand pointer collision & dwell detection for both categories & cards
+  // Hand pointer collision & dwell detection for categories, exit buttons & cards
   useEffect(() => {
     const now = performance.now();
     const CARD_DWELL_MS = 650; // Time needed to dwell-select a card
     const CAT_DWELL_MS = 450;  // Quick dwell to change category
+    const EXIT_DWELL_MS = 500; // Quick dwell to return to instruments
 
+    let detectedExit: 'instruments' | 'theremin' | null = null;
     let detectedCat: AACCategories | null = null;
     let detectedHoverId: string | null = null;
 
@@ -74,7 +103,38 @@ export const AACView: React.FC<AACViewProps> = ({ hands, onTriggerCard }) => {
       for (const hand of hands) {
         const { indexTip } = hand;
 
-        // 1. Test Category Tabs
+        // 1. Test Return / Exit Buttons
+        const exitButtons = [exitBtnTopRef.current, exitBtnBottomRef.current].filter(Boolean);
+        for (const btn of exitButtons) {
+          if (btn) {
+            const rect = btn.getBoundingClientRect();
+            if (
+              indexTip.x >= rect.left - 10 &&
+              indexTip.x <= rect.right + 10 &&
+              indexTip.y >= rect.top - 10 &&
+              indexTip.y <= rect.bottom + 10
+            ) {
+              detectedExit = 'instruments';
+              break;
+            }
+          }
+        }
+        if (detectedExit) break;
+
+        if (thereminBtnRef.current) {
+          const rect = thereminBtnRef.current.getBoundingClientRect();
+          if (
+            indexTip.x >= rect.left - 10 &&
+            indexTip.x <= rect.right + 10 &&
+            indexTip.y >= rect.top - 10 &&
+            indexTip.y <= rect.bottom + 10
+          ) {
+            detectedExit = 'theremin';
+            break;
+          }
+        }
+
+        // 2. Test Category Tabs
         for (const cat of ['quick-answers', 'vital-needs', 'feelings'] as AACCategories[]) {
           const el = categoryRefs.current[cat];
           if (el) {
@@ -92,7 +152,7 @@ export const AACView: React.FC<AACViewProps> = ({ hands, onTriggerCard }) => {
         }
         if (detectedCat) break;
 
-        // 2. Test Cards
+        // 3. Test Cards
         for (const card of cards) {
           const el = cardElementsRef.current[card.id];
           if (el) {
@@ -110,6 +170,40 @@ export const AACView: React.FC<AACViewProps> = ({ hands, onTriggerCard }) => {
         }
         if (detectedHoverId) break;
       }
+    }
+
+    // Process Exit Button Dwell
+    if (detectedExit) {
+      setHoveredExit(detectedExit);
+      setHoveredCat(null);
+      setHoveredCardId(null);
+      setDwellProgress(0);
+      hoverStartRef.current = null;
+      catHoverStartRef.current = null;
+
+      if (!exitHoverStartRef.current || exitHoverStartRef.current.target !== detectedExit) {
+        exitHoverStartRef.current = { target: detectedExit, time: now };
+        setExitDwellProgress(0);
+      } else {
+        const elapsed = now - exitHoverStartRef.current.time;
+        const progress = Math.min(1.0, elapsed / EXIT_DWELL_MS);
+        setExitDwellProgress(progress);
+
+        if (progress >= 1.0) {
+          if (detectedExit === 'instruments') {
+            handleExit();
+          } else {
+            handleSelectTheremin();
+          }
+          exitHoverStartRef.current = null;
+          setExitDwellProgress(0);
+        }
+      }
+      return;
+    } else {
+      setHoveredExit(null);
+      setExitDwellProgress(0);
+      exitHoverStartRef.current = null;
     }
 
     // Process Category Dwell
@@ -150,9 +244,9 @@ export const AACView: React.FC<AACViewProps> = ({ hands, onTriggerCard }) => {
       if (
         lastTriggeredCardRef.current &&
         lastTriggeredCardRef.current.cardId === detectedHoverId &&
-        now - lastTriggeredCardRef.current.time < 2200
+        now - lastTriggeredCardRef.current.time < 1800
       ) {
-        setDwellProgress(1.0);
+        setDwellProgress(0);
         return;
       }
 
@@ -165,18 +259,20 @@ export const AACView: React.FC<AACViewProps> = ({ hands, onTriggerCard }) => {
         setDwellProgress(progress);
 
         if (progress >= 1.0) {
-          const targetCard = cards.find((c) => c.id === detectedHoverId);
-          if (targetCard) {
-            handleCardSelect(targetCard);
-            lastTriggeredCardRef.current = { cardId: detectedHoverId, time: now };
+          const matchedCard = cards.find((c) => c.id === detectedHoverId);
+          if (matchedCard) {
+            handleCardSelect(matchedCard);
+            lastTriggeredCardRef.current = { cardId: matchedCard.id, time: now };
           }
+          hoverStartRef.current = null;
+          setDwellProgress(0);
         }
       }
     } else {
       setHoveredCardId(null);
       setDwellProgress(0);
       hoverStartRef.current = null;
-      if (lastTriggeredCardRef.current && now - lastTriggeredCardRef.current.time > 800) {
+      if (lastTriggeredCardRef.current && now - lastTriggeredCardRef.current.time > 1800) {
         lastTriggeredCardRef.current = null;
       }
     }
@@ -200,32 +296,52 @@ export const AACView: React.FC<AACViewProps> = ({ hands, onTriggerCard }) => {
   };
 
   return (
-    <div className="absolute inset-0 pointer-events-auto flex flex-col justify-between p-3 sm:p-5 z-30 pb-20">
-      {/* Top Section: Prompt + Live Speech Banner + Prominent Category Selector */}
-      <div className="w-full flex flex-col items-center gap-2.5 max-w-4xl mx-auto">
-        {/* Caregiver Prompt Bar */}
-        <div className="w-full glass-panel-glow px-4 py-2 rounded-2xl flex items-center justify-between border border-cyan-500/40 shadow-[0_0_25px_rgba(0,242,255,0.2)]">
-          <div className="flex items-center space-x-2 text-xs font-mono text-cyan-300">
-            <HelpCircle className="w-4 h-4 text-[#00f2ff] flex-shrink-0" />
-            <span className="text-slate-400 font-bold hidden sm:inline">PREGUNTA:</span>
-            <span className="text-white font-bold text-sm tracking-wide truncate max-w-xs sm:max-w-md">{currentPrompt}</span>
+    <div className="absolute inset-0 pointer-events-auto flex flex-col justify-between p-3 sm:p-5 z-30 pb-4 md:pb-6 overflow-y-auto">
+      {/* Top Section: Navigation + Prompt + Live Speech Banner + Category Selector */}
+      <div className="w-full flex flex-col items-center gap-2 max-w-5xl mx-auto">
+        {/* Top Header Row with Prompt Bar & Quick Exit Buttons */}
+        <div className="w-full flex flex-wrap items-center justify-between gap-2">
+          {/* Caregiver Prompt Bar */}
+          <div className="flex-1 min-w-[260px] glass-panel-glow px-4 py-2 rounded-2xl flex items-center justify-between border border-cyan-500/40 shadow-[0_0_25px_rgba(0,242,255,0.2)]">
+            <div className="flex items-center space-x-2 text-xs font-mono text-cyan-300">
+              <HelpCircle className="w-4 h-4 text-[#00f2ff] flex-shrink-0" />
+              <span className="text-slate-400 font-bold hidden sm:inline">PREGUNTA:</span>
+              <span className="text-white font-bold text-sm tracking-wide truncate max-w-xs sm:max-w-md">{currentPrompt}</span>
+            </div>
+
+            <div className="flex items-center space-x-1 overflow-x-auto">
+              {caregiverQuestions.map((q, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => setCurrentPrompt(q)}
+                  className={`px-2 py-1 rounded-lg text-[10px] font-mono transition-all whitespace-nowrap cursor-pointer ${
+                    currentPrompt === q
+                      ? 'bg-[#00f2ff] text-slate-950 font-bold'
+                      : 'bg-white/5 hover:bg-white/10 text-slate-300'
+                  }`}
+                >
+                  P{idx + 1}
+                </button>
+              ))}
+            </div>
           </div>
 
-          <div className="flex items-center space-x-1 overflow-x-auto">
-            {caregiverQuestions.map((q, idx) => (
-              <button
-                key={idx}
-                onClick={() => setCurrentPrompt(q)}
-                className={`px-2 py-1 rounded-lg text-[10px] font-mono transition-all whitespace-nowrap cursor-pointer ${
-                  currentPrompt === q
-                    ? 'bg-[#00f2ff] text-slate-950 font-bold'
-                    : 'bg-white/5 hover:bg-white/10 text-slate-300'
-                }`}
-              >
-                P{idx + 1}
-              </button>
-            ))}
-          </div>
+          {/* Top Quick Return Button */}
+          <button
+            ref={exitBtnTopRef}
+            onClick={handleExit}
+            className="relative overflow-hidden px-4 py-2.5 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-bold font-mono text-xs sm:text-sm flex items-center space-x-2 shadow-[0_0_25px_rgba(0,242,255,0.6)] cursor-pointer transition-all hover:scale-105 active:scale-95 shrink-0"
+            title="Volver a los instrumentos musicales"
+          >
+            {hoveredExit === 'instruments' && (
+              <div
+                className="absolute bottom-0 left-0 h-1.5 bg-white transition-all duration-75"
+                style={{ width: `${exitDwellProgress * 100}%` }}
+              />
+            )}
+            <Guitar className="w-4 h-4 text-slate-950" />
+            <span>Volver a Instrumentos 🎵</span>
+          </button>
         </div>
 
         {/* Big Spoken Feedback Banner */}
@@ -487,13 +603,47 @@ export const AACView: React.FC<AACViewProps> = ({ hands, onTriggerCard }) => {
         })}
       </div>
 
-      {/* Helper Guidance */}
-      <div className="w-full max-w-xl mx-auto text-center pointer-events-none">
-        <div className="inline-flex items-center space-x-2 px-4 py-1 rounded-full bg-black/60 border border-white/10 text-[11px] font-mono text-slate-400">
-          <Sparkles className="w-3.5 h-3.5 text-[#00f2ff]" />
-          <span>Apunta con el dedo índice 0.5s para seleccionar cualquier tarjeta o categoría</span>
+      {/* Bottom Control Dock Inside AACView */}
+      <footer className="w-full max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2.5 p-2 sm:p-3 rounded-2xl bg-[#050508]/90 backdrop-blur-xl border border-white/15 shadow-[0_0_30px_rgba(0,0,0,0.8)] pointer-events-auto">
+        <div className="flex items-center space-x-2 text-xs font-mono text-emerald-400">
+          <Sparkles className="w-3.5 h-3.5 text-[#00f2ff] animate-pulse shrink-0" />
+          <span className="text-[11px] text-slate-300">Apunta con el dedo índice 0.5s para seleccionar cualquier opción</span>
         </div>
-      </div>
+
+        <div className="flex items-center space-x-2 w-full sm:w-auto justify-end">
+          <button
+            ref={exitBtnBottomRef}
+            onClick={handleExit}
+            className="relative overflow-hidden flex-1 sm:flex-none px-4 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-bold font-mono text-xs flex items-center justify-center space-x-2 shadow-[0_0_20px_rgba(0,242,255,0.5)] cursor-pointer transition-all hover:scale-105 active:scale-95"
+            title="Volver a tocar instrumentos musicales"
+          >
+            {hoveredExit === 'instruments' && (
+              <div
+                className="absolute bottom-0 left-0 h-1.5 bg-white transition-all duration-75"
+                style={{ width: `${exitDwellProgress * 100}%` }}
+              />
+            )}
+            <Guitar className="w-4 h-4 text-slate-950 shrink-0" />
+            <span>Volver a Instrumentos 🎵</span>
+          </button>
+
+          <button
+            ref={thereminBtnRef}
+            onClick={handleSelectTheremin}
+            className="relative overflow-hidden flex-1 sm:flex-none px-3.5 py-2 rounded-xl bg-[#0D2560]/80 hover:bg-[#0D2560] border border-cyan-400/40 text-cyan-200 font-bold font-mono text-xs flex items-center justify-center space-x-1.5 shadow-[0_0_15px_rgba(0,242,255,0.25)] cursor-pointer transition-all hover:scale-105 active:scale-95"
+            title="Ir directo al Theremin AR"
+          >
+            {hoveredExit === 'theremin' && (
+              <div
+                className="absolute bottom-0 left-0 h-1.5 bg-cyan-400 transition-all duration-75"
+                style={{ width: `${exitDwellProgress * 100}%` }}
+              />
+            )}
+            <RadioTower className="w-4 h-4 text-cyan-400 shrink-0" />
+            <span>🛸 Theremin</span>
+          </button>
+        </div>
+      </footer>
     </div>
   );
 };
