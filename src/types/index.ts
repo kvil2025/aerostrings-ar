@@ -40,6 +40,22 @@ export interface AeroString {
 
 export type PlayMode = 'theremin' | 'laser-harp' | 'draw-strings' | 'elastic-two-hands' | 'aac-communicator';
 
+export type VirtualBackgroundMode =
+  | 'camera-raw'     // Cámara web real (AR directo)
+  | 'blur'           // Desenfoque cinemático tipo Google Meet / Zoom
+  | 'rock-concert'   // Estadio de Rock con focos móviles y torres de amplificadores
+  | 'cosmic-space'   // Espacio profundo con nebulosas y estrellas animadas
+  | 'rehearsal-room' // Sala de ensayo / Estudio con paneles de madera acústica
+  | 'cyberpunk-city' // Ciudad Cyberpunk nocturna con neones y lluvia digital
+  | 'zen-nature';    // Paisaje Zen con cordillera y lago al atardecer
+
+export interface BackgroundSettings {
+  mode: VirtualBackgroundMode;
+  userPresence: number; // 0 a 1 (opacidad de la cámara web sobre el fondo)
+  blurAmount: number;   // 0 a 30px para modo desenfoque
+  reactiveLighting: boolean; // Si los focos/estrellas reaccionan a la música
+}
+
 export type ThereminTimbre = 'classic-sine' | 'vintage-tube' | 'cosmic-scifi';
 export type ThereminScale = 'continuous' | 'chromatic' | 'pentatonic';
 

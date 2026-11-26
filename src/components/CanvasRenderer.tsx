@@ -1,7 +1,8 @@
 import React, { useEffect, useRef } from 'react';
-import { AeroString, HandData, Particle, PlayMode, ScreenPoint, Shockwave, ThereminState } from '../types';
+import { AeroString, BackgroundSettings, HandData, Particle, PlayMode, ScreenPoint, Shockwave, ThereminState } from '../types';
 import { distance2D, pointToSegmentDistance } from '../utils/geometry';
 import { soundManager } from '../audio/AudioEngine';
+import { virtualStageRenderer } from '../rendering/VirtualStageRenderer';
 
 interface CanvasRendererProps {
   videoRef: React.RefObject<HTMLVideoElement>;
@@ -14,6 +15,7 @@ interface CanvasRendererProps {
   currentNoteHover: string | null;
   setCurrentNoteHover: (note: string | null) => void;
   thereminState?: ThereminState;
+  backgroundSettings?: BackgroundSettings;
 }
 
 const HAND_CONNECTIONS = [
@@ -35,6 +37,7 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
   onPluck,
   setCurrentNoteHover,
   thereminState,
+  backgroundSettings,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const draftStartRef = useRef<ScreenPoint | null>(null);
@@ -106,18 +109,42 @@ export const CanvasRenderer: React.FC<CanvasRendererProps> = ({
       // Clear Canvas
       ctx.clearRect(0, 0, width, height);
 
-      // 1. Draw Mirrored Webcam Feed
-      if (video.readyState >= 2) {
-        ctx.save();
-        ctx.translate(width, 0);
-        ctx.scale(-1, 1);
-        ctx.drawImage(video, 0, 0, width, height);
-        ctx.restore();
-
-        if (videoDimming > 0) {
-          ctx.fillStyle = `rgba(5, 5, 12, ${videoDimming})`;
-          ctx.fillRect(0, 0, width, height);
+      // 1. Calculate live audio reactive energy for dynamic stage lights
+      let audioEnergy = 0.1;
+      if (thereminState && thereminState.isActive) {
+        audioEnergy = thereminState.volume;
+      } else {
+        for (const str of strings) {
+          const delta = now - str.lastPluckedTime;
+          if (delta < 800) {
+            const decay = Math.max(0, 1 - delta / 800);
+            if (decay > audioEnergy) audioEnergy = decay;
+          }
         }
+      }
+
+      // 2. Render Virtual Stage / Background (Meet / Zoom / Concert / Studio / Space)
+      const bgConfig = backgroundSettings || {
+        mode: 'camera-raw',
+        userPresence: 1.0,
+        blurAmount: 16,
+        reactiveLighting: true,
+      };
+
+      virtualStageRenderer.renderBackground(
+        ctx,
+        width,
+        height,
+        video,
+        bgConfig,
+        audioEnergy,
+        now
+      );
+
+      // Apply video dimming if user presence is camera-raw
+      if (bgConfig.mode === 'camera-raw' && videoDimming > 0) {
+        ctx.fillStyle = `rgba(5, 5, 12, ${videoDimming})`;
+        ctx.fillRect(0, 0, width, height);
       }
 
       // -------------------------------------------------------------

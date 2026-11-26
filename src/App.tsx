@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { AeroString, HandData, InstrumentTimbre, PlayMode, ThereminScale, ThereminState, ThereminTimbre } from './types';
+import { AeroString, BackgroundSettings, HandData, InstrumentTimbre, PlayMode, ThereminScale, ThereminState, ThereminTimbre } from './types';
 import { handTracker } from './vision/HandTracker';
 import { soundManager } from './audio/AudioEngine';
 import { thereminEngine } from './audio/ThereminEngine';
@@ -37,6 +37,14 @@ export const App: React.FC = () => {
   const [thereminState, setThereminState] = useState<ThereminState>(thereminEngine.getState());
   const [thereminTimbre, setThereminTimbre] = useState<ThereminTimbre>('vintage-tube');
   const [thereminScale, setThereminScale] = useState<ThereminScale>('continuous');
+
+  // Virtual Stage / Background Settings (Zoom & Meet style)
+  const [backgroundSettings, setBackgroundSettings] = useState<BackgroundSettings>({
+    mode: 'rock-concert', // Empieza en vivo en el escenario de Rock Stadium!
+    userPresence: 0.70,
+    blurAmount: 16,
+    reactiveLighting: true,
+  });
 
   useEffect(() => {
     soundManager.subscribeStateChange((state) => {
@@ -456,6 +464,7 @@ export const App: React.FC = () => {
         strings={strings}
         playMode={playMode}
         videoDimming={videoDimming}
+        backgroundSettings={backgroundSettings}
         onAddString={(newStr) => setStrings((prev) => [...prev, newStr])}
         onPluck={handlePluck}
         currentNoteHover={hoverInfo}
@@ -511,6 +520,8 @@ export const App: React.FC = () => {
         setThereminTimbre={setThereminTimbre}
         thereminScale={thereminScale}
         setThereminScale={setThereminScale}
+        backgroundSettings={backgroundSettings}
+        setBackgroundSettings={setBackgroundSettings}
       />
 
       {/* Loading Overlay */}
