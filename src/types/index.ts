@@ -43,6 +43,7 @@ export type PlayMode = 'theremin' | 'laser-harp' | 'draw-strings' | 'elastic-two
 export type VirtualBackgroundMode =
   | 'camera-raw'     // Cámara web real (AR directo)
   | 'blur'           // Desenfoque cinemático tipo Google Meet / Zoom
+  | 'custom-image'   // Imagen personalizada subida por el usuario
   | 'rock-concert'   // Estadio de Rock con focos móviles y torres de amplificadores
   | 'cosmic-space'   // Espacio profundo con nebulosas y estrellas animadas
   | 'rehearsal-room' // Sala de ensayo / Estudio con paneles de madera acústica
@@ -54,6 +55,7 @@ export interface BackgroundSettings {
   userPresence: number; // 0 a 1 (opacidad de la cámara web sobre el fondo)
   blurAmount: number;   // 0 a 30px para modo desenfoque
   reactiveLighting: boolean; // Si los focos/estrellas reaccionan a la música
+  customImageUrl?: string | null; // URL base64 o blob de imagen personalizada
 }
 
 export type ThereminTimbre = 'classic-sine' | 'vintage-tube' | 'cosmic-scifi';

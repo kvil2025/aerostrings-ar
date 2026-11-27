@@ -21,6 +21,9 @@ import {
   RadioTower,
   Waves,
   Image,
+  Upload,
+  FolderOpen,
+  Trash2,
   Check,
   X
 } from 'lucide-react';
@@ -60,6 +63,12 @@ const BACKGROUND_OPTIONS: { mode: VirtualBackgroundMode; emoji: string; title: s
     emoji: '🌫️',
     title: 'Desenfoque Bokeh (Meet / Zoom)',
     desc: 'Desenfoca tu habitación con efecto cinematográfico aislando al músico en foco.',
+  },
+  {
+    mode: 'custom-image',
+    emoji: '🖼️',
+    title: 'Mi Imagen Propia (Subir Foto)',
+    desc: 'Sube cualquier imagen desde tu dispositivo (tu sala, estadio, logo o paisaje).',
   },
   {
     mode: 'rock-concert',
@@ -270,6 +279,8 @@ export const HUDOverlay: React.FC<HUDOverlayProps> = ({
                 ? '📷 Real'
                 : backgroundSettings.mode === 'blur'
                 ? '🌫️ Blur'
+                : backgroundSettings.mode === 'custom-image'
+                ? '🖼️ Foto'
                 : backgroundSettings.mode === 'rock-concert'
                 ? '🎸 Rock'
                 : backgroundSettings.mode === 'cosmic-space'
@@ -787,6 +798,92 @@ export const HUDOverlay: React.FC<HUDOverlayProps> = ({
               >
                 <X className="w-4 h-4" />
               </button>
+            </div>
+
+            {/* Custom Image Upload Banner (visible if custom-image is selected or user wants to upload) */}
+            <div className={`p-3.5 rounded-2xl border transition-all ${
+              backgroundSettings.mode === 'custom-image'
+                ? 'bg-[#0D2560]/40 border-cyan-400 shadow-[0_0_25px_rgba(0,242,255,0.2)]'
+                : 'bg-black/30 border-white/10'
+            }`}>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center space-x-3">
+                  {backgroundSettings.customImageUrl ? (
+                    <div className="relative w-14 h-14 rounded-xl overflow-hidden border border-cyan-400/50 shrink-0 bg-black">
+                      <img
+                        src={backgroundSettings.customImageUrl}
+                        alt="Custom Preview"
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  ) : (
+                    <div className="w-14 h-14 rounded-xl border border-dashed border-cyan-400/40 flex items-center justify-center shrink-0 bg-cyan-950/20 text-cyan-400">
+                      <FolderOpen className="w-6 h-6" />
+                    </div>
+                  )}
+
+                  <div>
+                    <h3 className="text-sm font-bold font-mono text-white flex items-center space-x-2">
+                      <span>Tu Imagen de Escenario</span>
+                      {backgroundSettings.customImageUrl && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                          Cargada
+                        </span>
+                      )}
+                    </h3>
+                    <p className="text-[11px] text-slate-300 font-mono mt-0.5">
+                      {backgroundSettings.customImageUrl
+                        ? 'Imagen activa lista para tu interpretación musical'
+                        : 'Sube un JPG, PNG o WebP desde tu celular, tablet o computador'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center space-x-2 shrink-0">
+                  <label className="px-3.5 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-mono text-xs font-bold flex items-center space-x-1.5 cursor-pointer shadow-[0_0_15px_rgba(0,242,255,0.4)] transition-all hover:scale-105">
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>{backgroundSettings.customImageUrl ? 'Cambiar Foto' : 'Subir Imagen'}</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onload = (event) => {
+                            const result = event.target?.result as string;
+                            if (result) {
+                              setBackgroundSettings((prev) => ({
+                                ...prev,
+                                mode: 'custom-image',
+                                customImageUrl: result,
+                              }));
+                            }
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                    />
+                  </label>
+
+                  {backgroundSettings.customImageUrl && (
+                    <button
+                      onClick={() =>
+                        setBackgroundSettings((prev) => ({
+                          ...prev,
+                          mode: prev.mode === 'custom-image' ? 'rock-concert' : prev.mode,
+                          customImageUrl: null,
+                        }))
+                      }
+                      className="p-2 rounded-xl bg-rose-950/40 hover:bg-rose-900/60 border border-rose-500/40 text-rose-300 cursor-pointer transition-all"
+                      title="Eliminar imagen personalizada"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
 
             {/* Stages Grid */}

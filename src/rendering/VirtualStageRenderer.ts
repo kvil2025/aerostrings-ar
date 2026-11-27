@@ -24,6 +24,10 @@ export class VirtualStageRenderer {
   private vuMeterLevel = 0.2;
   private isInitialized = false;
 
+  // Custom User Image Cache
+  private cachedCustomImage: HTMLImageElement | null = null;
+  private currentCustomImageUrl: string | null = null;
+
   constructor() {
     this.initParticles();
   }
@@ -87,6 +91,10 @@ export class VirtualStageRenderer {
         this.renderBlurMode(ctx, video, width, height, blurAmount || 16);
         return;
 
+      case 'custom-image':
+        this.renderCustomImageMode(ctx, width, height, settings.customImageUrl, energy, now);
+        break;
+
       case 'rock-concert':
         this.renderRockConcert(ctx, width, height, energy, now);
         break;
@@ -147,6 +155,102 @@ export class VirtualStageRenderer {
     vignette.addColorStop(1, 'rgba(5, 5, 12, 0.55)');
     ctx.fillStyle = vignette;
     ctx.fillRect(0, 0, width, height);
+  }
+
+  /**
+   * Custom User Uploaded Background Image Mode
+   */
+  private renderCustomImageMode(
+    ctx: CanvasRenderingContext2D,
+    width: number,
+    height: number,
+    customImageUrl: string | null | undefined,
+    energy: number,
+    now: number
+  ) {
+    if (!customImageUrl) {
+      // Fallback si aún no sube imagen: elegante escenario oscuro de estudio con grid
+      ctx.fillStyle = '#060812';
+      ctx.fillRect(0, 0, width, height);
+
+      // Guía suave en el centro
+      ctx.fillStyle = 'rgba(0, 242, 255, 0.2)';
+      ctx.font = '16px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('📁 Sube tu imagen en [🖼️ Escenario] para proyectarla aquí', width / 2, height / 2);
+      return;
+    }
+
+    // Cargar o usar imagen en caché
+    if (this.currentCustomImageUrl !== customImageUrl) {
+      this.currentCustomImageUrl = customImageUrl;
+      const img = new window.Image();
+      img.src = customImageUrl;
+      img.onload = () => {
+        this.cachedCustomImage = img;
+      };
+    }
+
+    if (this.cachedCustomImage && this.cachedCustomImage.complete && this.cachedCustomImage.naturalWidth > 0) {
+      const img = this.cachedCustomImage;
+
+      // Calcular aspecto "cover" (llenar pantalla completa sin deformar)
+      const canvasAspect = width / height;
+      const imgAspect = img.naturalWidth / img.naturalHeight;
+
+      let drawWidth = width;
+      let drawHeight = height;
+      let offsetX = 0;
+      let offsetY = 0;
+
+      if (imgAspect > canvasAspect) {
+        // La imagen es más ancha que la pantalla
+        drawHeight = height;
+        drawWidth = height * imgAspect;
+        offsetX = (width - drawWidth) / 2;
+      } else {
+        // La imagen es más alta que la pantalla
+        drawWidth = width;
+        drawHeight = width / imgAspect;
+        offsetY = (height - drawHeight) / 2;
+      }
+
+      ctx.save();
+      // Dibujar imagen con escala 'cover'
+      ctx.drawImage(img, offsetX, offsetY, drawWidth, drawHeight);
+
+      // Viñeta y halo de escenario musical sutil sobre la imagen
+      const stageGlow = ctx.createRadialGradient(
+        width / 2,
+        height * 0.45,
+        Math.min(width, height) * 0.2,
+        width / 2,
+        height * 0.5,
+        Math.max(width, height) * 0.75
+      );
+      stageGlow.addColorStop(0, `rgba(0, 242, 255, ${0.03 + energy * 0.08})`);
+      stageGlow.addColorStop(0.7, 'rgba(5, 5, 12, 0.3)');
+      stageGlow.addColorStop(1, 'rgba(5, 5, 12, 0.7)');
+      ctx.fillStyle = stageGlow;
+      ctx.fillRect(0, 0, width, height);
+
+      // Pulso de luz reactiva suave en los bordes si hay música
+      if (energy > 0.3) {
+        ctx.strokeStyle = `rgba(0, 242, 255, ${(energy - 0.3) * 0.35})`;
+        ctx.lineWidth = 4;
+        ctx.strokeRect(0, 0, width, height);
+      }
+
+      ctx.restore();
+    } else {
+      // Estado mientras carga la imagen
+      ctx.fillStyle = '#060812';
+      ctx.fillRect(0, 0, width, height);
+      ctx.fillStyle = '#00f2ff';
+      ctx.font = '14px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('Cargando tu imagen de escenario...', width / 2, height / 2);
+    }
   }
 
   /**
